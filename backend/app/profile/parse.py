@@ -52,4 +52,6 @@ SYSTEM = (
 
 
 async def parse_profile(provider: LLMProvider, text: str) -> Profile:
-    return await provider.complete_json(SYSTEM, f"Resume text:\n\n{text}", Profile)
+    profile = await provider.complete_json(SYSTEM, f"Resume text:\n\n{text}", Profile)
+    profile.attested_skills = []  # only the user can approve skill bridges, never the parser
+    return profile

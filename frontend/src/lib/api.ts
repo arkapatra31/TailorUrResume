@@ -1,5 +1,5 @@
 import { useStore } from "@/store";
-import type { Doc, FetchedJob, GeneratedDoc, JobDescription, MatchResult, Profile, TemplateId, TruthFlag } from "./types";
+import type { AttestedSkill, BridgeItem, Doc, FetchedJob, GeneratedDoc, JobDescription, MatchResult, Profile, TemplateId, TruthFlag } from "./types";
 
 export class ApiError extends Error {
   status: number;
@@ -48,16 +48,19 @@ export const api = {
   fetchJob: (url: string) => post<FetchedJob>("/api/jd/fetch", { url }, false),
   extractJd: (text: string, source_url: string) => post<JobDescription>("/api/jd/extract", { text, source_url }),
   match: (profile: Profile, jd: JobDescription) => post<MatchResult>("/api/match", { profile, jd }),
+  bridge: (profile: Profile, jd: JobDescription, missing: string[], gaps: string[]) =>
+    post<{ items: BridgeItem[] }>("/api/bridge", { profile, jd, missing, gaps }),
   regenerateBullet: (body: { profile: Profile; jd: JobDescription; bullet: string; context: string; instruction?: string }) =>
     post<{ bullet: string; unsupported: string[] }>("/api/regenerate-bullet", body),
   checkTruth: (profile: Profile, doc: Doc, jd: JobDescription) =>
     post<{ flags: TruthFlag[] }>("/api/check-truth", { profile, doc, jd }, false),
 
   async generate(
-    body: { kind: Doc["kind"]; profile: Profile; jd: JobDescription; match: MatchResult | null; instructions?: string },
+    body: { kind: Doc["kind"]; profile: Profile; jd: JobDescription; match: MatchResult | null; instructions?: string; auto_bridge?: boolean },
     onToken: (t: string) => void,
     signal?: AbortSignal,
     onWarning?: (detail: string) => void,
+    onBridge?: (b: { items: BridgeItem[]; added: AttestedSkill[] }) => void,
   ): Promise<GeneratedDoc> {
     let r: Response;
     try {
@@ -83,6 +86,7 @@ export const api = {
         if (!ev || !data) continue;
         const payload = JSON.parse(data);
         if (ev === "token") onToken(payload.text);
+        else if (ev === "bridge") onBridge?.(payload);
         else if (ev === "warning") onWarning?.(payload.detail ?? "The output may be incomplete.");
         else if (ev === "error") throw new ApiError(payload.detail ?? "Generation failed.", 502);
         else if (ev === "done") result = { doc: payload.doc, flags: payload.flags, generatedAt: Date.now() };

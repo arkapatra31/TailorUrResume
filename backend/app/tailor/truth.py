@@ -7,6 +7,10 @@ What is checked:
   * "N years" claims: only if the profile states them or its dated experience spans them
   * the document name and contact lines: must come from the profile's contact data
 
+Skills the user approved on the Match step (profile.attested_skills) and their evidence are part of
+the profile corpus, so they pass; self-attested ones (no support found in the profile) also get an
+info-level flag. Unapproved job skills are still flagged.
+
 The whitelist of always-allowed tokens is built ONLY from the profile's contact data. The JD
 title/company/location are additionally allowed in free-text paragraphs (cover letters, summaries),
 never in experience items.
@@ -335,6 +339,31 @@ def check_document(profile: Profile, doc: Document, jd: Optional[JobDescription]
                 bad = _unsupported(it.note, item_ctx)
                 if bad:
                     flags.append(TruthFlag(text=it.note, section=si, item=ii, bullet=-1, unsupported=bad))
+    return flags + _self_attested_flags(profile, doc)
+
+
+def _self_attested_flags(profile: Profile, doc: Document) -> list[TruthFlag]:
+    """Info-level notes where the text leans on a skill only the user's own word supports."""
+    skills = [a.skill.strip() for a in profile.attested_skills if a.self_attested and len(a.skill.strip()) >= 2]
+    if not skills:
+        return []
+    flags: list[TruthFlag] = []
+
+    def visit(text: str, si: int, ii: int, bi: int) -> None:
+        tl = text.lower()
+        hit = [k for k in skills if re.search(r"(?<![a-z0-9])" + re.escape(k.lower()) + r"(?![a-z0-9])", tl)]
+        if hit:
+            flags.append(TruthFlag(text=text, section=si, item=ii, bullet=bi, unsupported=hit, level="info",
+                                   reason="Self-attested skill: be ready to back it up in an interview"))
+
+    for si, s in enumerate(doc.sections):
+        for pi, para in enumerate(s.paragraphs):
+            visit(para, si, -1, pi)
+        for ii, it in enumerate(s.items):
+            for bi, b in enumerate(it.bullets):
+                visit(b, si, ii, bi)
+            if it.note:
+                visit(it.note, si, ii, -1)
     return flags
 
 

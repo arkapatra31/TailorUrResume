@@ -69,6 +69,14 @@ class Education(Lenient):
     details: list[str] = Field(default_factory=list)
 
 
+class AttestedSkill(Lenient):
+    """A job skill missing from the profile that the user explicitly approved for their documents."""
+    skill: str = ""
+    evidence: str = ""
+    #: True when the user included it although the bridge found no support in the profile.
+    self_attested: bool = False
+
+
 class Profile(Lenient):
     contact: Contact = Field(default_factory=Contact)
     summary: str = ""
@@ -78,6 +86,8 @@ class Profile(Lenient):
     skills: list[str] = Field(default_factory=list)
     certifications: list[str] = Field(default_factory=list)
     publications: list[str] = Field(default_factory=list)
+    #: User-approved skill bridges. Never filled by the profile parser.
+    attested_skills: list[AttestedSkill] = Field(default_factory=list)
 
 
 class JobDescription(Lenient):
@@ -153,6 +163,28 @@ class TruthFlag(BaseModel):
     bullet: int = -1
     unsupported: list[str]
     reason: str = "Not traceable to your profile"
+    #: "warn" = not traceable to the profile; "info" = backed only by the user's own attestation.
+    level: Literal["warn", "info"] = "warn"
+
+
+BridgeVerdict = Literal["supported", "partial", "unsupported"]
+
+
+class BridgeItem(Lenient):
+    skill: str = ""
+    verdict: BridgeVerdict = "unsupported"
+    evidence: list[str] = Field(default_factory=list, description="Exact skills/tools/phrases from the profile")
+    rationale: str = ""
+
+    @field_validator("verdict", mode="before")
+    @classmethod
+    def _verdict(cls, v: Any) -> str:
+        v = str(v).strip().lower()
+        return v if v in ("supported", "partial", "unsupported") else "unsupported"
+
+
+class BridgeResult(Lenient):
+    items: list[BridgeItem] = Field(default_factory=list)
 
 
 class BulletRewrite(Lenient):
@@ -174,12 +206,21 @@ class MatchRequest(BaseModel):
     jd: JobDescription
 
 
+class BridgeRequest(BaseModel):
+    profile: Profile
+    jd: JobDescription
+    missing: list[str] = Field(default_factory=list)
+    gaps: list[str] = Field(default_factory=list)
+
+
 class GenerateRequest(BaseModel):
     kind: DocKind = "resume"
     profile: Profile
     jd: JobDescription
     match: Optional[MatchResult] = None
     instructions: str = ""
+    #: Opt-in: let the bridge add missing job skills that existing experience genuinely supports.
+    auto_bridge: bool = False
 
 
 class RegenerateBulletRequest(BaseModel):

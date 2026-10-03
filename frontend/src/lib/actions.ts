@@ -2,6 +2,7 @@ import { toast } from "sonner";
 import { create } from "zustand";
 import { useStore } from "@/store";
 import { api } from "./api";
+import { upsertAttested } from "./bridge";
 import { downloadBlob } from "./utils";
 import type { DocKind } from "./types";
 
@@ -11,7 +12,7 @@ export const useStream = create<StreamState>(() => ({ active: false, kind: null,
 let controller: AbortController | null = null;
 export const KIND_LABEL: Record<DocKind, string> = { resume: "Resume", cv: "CV", cover_letter: "Cover letter" };
 
-export async function generate(kind: DocKind, instructions = "") {
+export async function generate(kind: DocKind, instructions = "", autoBridge = false) {
   const s = useStore.getState();
   const job = s.jobs.find((j) => j.id === s.activeJobId);
   if (!s.profile || !job?.jd) { toast.error("Add your profile and a job first."); return; }
@@ -21,14 +22,24 @@ export async function generate(kind: DocKind, instructions = "") {
   useStream.setState({ active: true, kind, jobId: job.id, text: "" });
   try {
     const result = await api.generate(
-      { kind, profile: s.profile, jd: job.jd, match: job.match, instructions },
+      { kind, profile: s.profile, jd: job.jd, match: job.match, instructions, auto_bridge: autoBridge },
       (t) => useStream.setState((st) => ({ text: st.text + t })),
       controller.signal,
       (detail) => toast.warning(detail, { duration: 9000 }),
+      ({ items, added }) => {
+        // Keep auto-added skills on the profile so later truth re-checks and regenerations know them.
+        const st = useStore.getState();
+        let p = st.profile;
+        if (p) for (const a of added) p = upsertAttested(p, a);
+        if (p && added.length) st.setProfile(p);
+        st.updateJob(job.id, { bridge: items });
+        if (added.length) toast.info(`Added related skills: ${added.map((a) => a.skill).join(", ")}`, { description: "Backed by your existing experience. Review them on the Match step or in your profile." });
+      },
     );
     useStore.getState().setDoc(job.id, kind, result);
+    const warn = result.flags.filter((f) => f.level !== "info").length;
     toast.success(`${KIND_LABEL[kind]} ready`, {
-      description: result.flags.length ? `${result.flags.length} claim(s) flagged for review.` : "Every claim traces back to your profile.",
+      description: warn ? `${warn} claim(s) flagged for review.` : "Every claim traces back to your profile.",
     });
   } catch (e) {
     if ((e as Error).name !== "AbortError") toast.error((e as Error).message);

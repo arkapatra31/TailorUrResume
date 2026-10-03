@@ -1,7 +1,8 @@
 import { motion } from "framer-motion";
-import { Briefcase, FolderGit2, GraduationCap, Plus, Trash2, User } from "lucide-react";
+import { Briefcase, FolderGit2, GraduationCap, Link2, Plus, Trash2, User } from "lucide-react";
 import type { ReactNode } from "react";
-import type { Education, Experience, Profile, Project } from "@/lib/types";
+import type { AttestedSkill, Education, Experience, Profile, Project } from "@/lib/types";
+import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Card, CardTitle } from "./ui/card";
 import { Input, Label, Textarea } from "./ui/field";
@@ -106,6 +107,24 @@ export function ProfileEditor({ profile, onChange }: { profile: Profile; onChang
       <Section i={6} icon={<User className="size-4 text-accent" />} title="Publications">
         <TagInput value={profile.publications} onChange={(v) => set("publications", v)} placeholder="Add publication" />
       </Section>
+
+      {(profile.attested_skills ?? []).length > 0 && (
+        <div className="lg:col-span-2">
+          <Section i={7} icon={<Link2 className="size-4 text-accent" />} title="Added skills (from Match)">
+            <p className="text-xs text-muted-foreground">Job skills you approved. Generated documents may claim them, grounded in this evidence.</p>
+            {(profile.attested_skills ?? []).map((a: AttestedSkill, i) => (
+              <div key={i} className="grid gap-3 rounded-xl border p-4 sm:grid-cols-[1fr_2fr_auto] sm:items-end">
+                <F label="Skill"><Input value={a.skill} onChange={(e) => set("attested_skills", upd(profile.attested_skills ?? [], i, { skill: e.target.value }))} /></F>
+                <F label="Evidence"><Input value={a.evidence} onChange={(e) => set("attested_skills", upd(profile.attested_skills ?? [], i, { evidence: e.target.value }))} /></F>
+                <div className="flex items-center gap-2">
+                  {a.self_attested && <Badge tone="warn">Self-attested</Badge>}
+                  <Button size="sm" variant="ghost" aria-label={`Remove ${a.skill}`} onClick={() => set("attested_skills", rm(profile.attested_skills ?? [], i))}><Trash2 />Remove</Button>
+                </div>
+              </div>
+            ))}
+          </Section>
+        </div>
+      )}
     </div>
   );
 }

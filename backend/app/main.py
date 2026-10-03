@@ -20,9 +20,10 @@ from .llm.base import LLMError, LLMProvider
 from .logging_utils import current_key, install_redaction, redact
 from .profile.parse import ParseError, extract_text, parse_profile
 from .schemas import (
-    ExportRequest, ExtractRequest, FetchRequest, GenerateRequest, JobDescription, MatchRequest,
+    BridgeRequest, BridgeResult, ExportRequest, ExtractRequest, FetchRequest, GenerateRequest, JobDescription, MatchRequest,
     MatchResult, Profile, RegenerateBulletRequest, TruthRequest,
 )
+from .tailor.bridge import bridge_gaps
 from .tailor.generate import generate_events, regenerate_bullet
 from .tailor.match import analyze_match
 from .tailor.truth import check_document
@@ -113,6 +114,11 @@ async def jd_extract(req: ExtractRequest, provider: LLMProvider = Depends(get_pr
 @app.post("/api/match", response_model=MatchResult)
 async def match(req: MatchRequest, provider: LLMProvider = Depends(get_provider)):
     return await analyze_match(provider, req.profile, req.jd)
+
+
+@app.post("/api/bridge", response_model=BridgeResult)
+async def bridge(req: BridgeRequest, provider: LLMProvider = Depends(get_provider)):
+    return await bridge_gaps(provider, req)
 
 
 def _sse(event: str, data: dict) -> str:

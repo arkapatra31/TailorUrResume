@@ -51,6 +51,8 @@ def profile_text(p: Profile) -> str:
     for ed in p.education:
         parts += [ed.school, ed.degree, ed.field, ed.start, ed.end, *ed.details]
     parts += p.skills + p.certifications + p.publications
+    for a in p.attested_skills:
+        parts += [a.skill, a.evidence]
     return "\n".join(x for x in parts if x)
 
 
