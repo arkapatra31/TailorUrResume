@@ -10,6 +10,8 @@ without fabricating anything. FastAPI backend (`backend/`) + React/Vite/TypeScri
 - Type-check + build: `cd frontend && npm run build`
 - E2E (API mocked in `e2e/mocks.ts`): `cd frontend && npm run test:e2e`
 - Docker: `docker compose up --build` (UI :3000, API :8000)
+- Landing page (GitHub Pages, separate app): `cd web && npm install && npm run dev` (:5174), `npm run build`.
+  Refresh its product screenshots with `cd frontend && SHOTS_DIR=../web/public/shots npx playwright test screenshots`.
 
 ## Hard rules
 - **Stateless and private.** No DB, disk writes, server sessions or caches. Every request carries its own state.
