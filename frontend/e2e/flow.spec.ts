@@ -73,14 +73,25 @@ test("a failed match shows an error with Retry", async ({ page }) => {
   await expect(page.getByText("Semantic fit")).toBeVisible();
 });
 
-test("a malformed session file shows the recovery screen, not a white page", async ({ page }) => {
-  await mockApi(page);
-  await page.goto("/");
-  await page.getByLabel("Load session").click({ trial: true });
+async function loadSession(page: Page, data: unknown) {
   const chooser = page.waitForEvent("filechooser");
   await page.getByLabel("Load session").click();
-  await (await chooser).setFiles({ name: "s.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify({ app: "TailorUrResume", version: 1, profile: { experience: "nope" }, jobs: [{ jd: 5 }] })) });
-  // Either the import is rejected with a toast or sanitized; the app must stay usable.
-  await expect(page.getByRole("navigation", { name: "Progress" })).toBeVisible();
+  await (await chooser).setFiles({ name: "s.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(data)) });
+}
+
+test("a malformed session file is rejected without crashing", async ({ page }) => {
+  await mockApi(page);
+  await page.goto("/");
+  await loadSession(page, { app: "TailorUrResume", version: 1, profile: { experience: "nope" }, jobs: [{ jd: 5 }] });
+  await expect(page.getByText("not a valid TailorUrResume session")).toBeVisible();
+  await expect(heading(page, /Bring your own brain/)).toBeVisible();
+});
+
+test("a sparse session file is normalized and loads", async ({ page }) => {
+  await mockApi(page);
+  await page.goto("/");
+  await loadSession(page, { app: "TailorUrResume", version: 1, profile: { contact: null, skills: ["Go", null] }, jobs: [{ jd: { title: "SRE", must_have: null }, match: { score: 400 } }] });
+  await expect(page.getByText("Session restored")).toBeVisible();
+  await expect(heading(page, /How well do you fit/)).toBeVisible();
   await expect(page.locator("main")).not.toBeEmpty();
 });
