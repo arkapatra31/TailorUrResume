@@ -1,0 +1,25 @@
+services:
+  backend:
+    build: ./backend
+    environment:
+      CORS_ORIGINS: "http://localhost:3000,http://localhost:5173"
+      OLLAMA_URL: "http://ollama:11434"
+    expose: ["8000"]
+    ports: ["8000:8000"]
+    read_only: true            # the API never writes to disk
+    tmpfs: ["/tmp"]
+
+  frontend:
+    build: ./frontend
+    depends_on: [backend]
+    ports: ["3000:80"]
+
+  # Optional local models: docker compose --profile ollama up
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["ollama"]
+    ports: ["11434:11434"]
+    volumes: ["ollama:/root/.ollama"]
+
+volumes:
+  ollama:
