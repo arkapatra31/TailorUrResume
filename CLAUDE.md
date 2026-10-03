@@ -31,7 +31,9 @@ without fabricating anything. FastAPI backend (`backend/`) + React/Vite/TypeScri
   "supported" by a different one (capped at `partial`).
 - `tailor/generate.py`: streamed SSE generation (`token`, `bridge`, `warning`, `done` events).
   - `Profile.attested_skills` (user-approved on Match, or auto-added) are claimable, grounded in their evidence;
-    all other missing skills go in the "do not claim" list.
+    all other missing skills go in the "do not claim" list. They are worked in by rephrasing the related
+    wording their evidence points to (e.g. "LLM apps" -> "Gen AI apps"; Skills line "Gen AI (LangChain, ...)"),
+    never by adding new bullets or achievements.
   - `GenerateRequest.auto_bridge` (Craft step opt-in): runs the bridge first; `supported` skills are added,
     `partial` ones are mentioned as related experience only, `unsupported` ones stay out.
   - Match gaps and next steps are always passed as guidance on emphasis/wording, never as a source of facts;

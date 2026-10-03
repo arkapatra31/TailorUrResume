@@ -56,8 +56,13 @@ def attested_line(profile: Profile) -> str:
         return ""
     items = "; ".join(f"{a.skill.strip()} (evidence: {a.evidence.strip() or 'user-confirmed'})" for a in att)
     return (
-        f"\nUser-confirmed skills (may claim; ground each in its evidence and never invent employers, "
-        f"projects or metrics for them): {items}"
+        f"\nUser-confirmed skills: {items}\n"
+        "Work each one in by REPLACING related wording, not by adding content: find the bullets, summary "
+        "phrases and skills that its evidence refers to and reword them to use the job's term (e.g. 'built "
+        "LLM apps with LangChain' -> 'built Gen AI apps with LangChain'). In the Skills section, replace the "
+        "narrower related entry with the job's term and keep the specific tools next to it, e.g. 'Gen AI "
+        "(LangChain, Claude SDK)', so no matched keyword is lost. Never add new bullets, employers, projects, "
+        "metrics or achievements for these skills."
     )
 
 

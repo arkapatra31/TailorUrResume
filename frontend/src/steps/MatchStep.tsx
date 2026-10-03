@@ -1,6 +1,6 @@
 import { LayoutGroup, motion, useReducedMotion } from "framer-motion";
 import { AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2, Gauge, Lightbulb, Link2, Loader2, PlusCircle, RefreshCw, XCircle } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Confetti } from "@/components/Confetti";
 import { GapPopover, VERDICT } from "@/components/GapPopover";
@@ -14,35 +14,46 @@ import type { BridgeItem } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useActiveJob, useStore } from "@/store";
 
+// Long JD phrases ("3+ years applied software engineering experience") wrap inside the chip instead of stretching it.
+const CHIP = "inline-flex max-w-full items-start gap-1.5 rounded-2xl border px-3 py-1 text-left text-sm leading-snug";
+const ICON = "mt-[3px] size-3.5 shrink-0";
+
 function Chip({ t, ok, sorted }: { t: string; ok: boolean; sorted: boolean }) {
   return (
     // No `layout`/`layoutId` here: projection nodes inside a step that is animating out stalled AnimatePresence, leaving the next step blank
     // once the chips had re-sorted. A short pop-in on re-sort keeps the effect without that.
     <motion.span initial={{ opacity: 0.4, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ type: "spring", stiffness: 260, damping: 24 }}
-      className={cn("inline-flex items-center gap-1 rounded-full border px-3 py-1 text-sm", !sorted ? "bg-muted" : ok ? "border-success/50 bg-success/15 text-success" : "border-danger/50 bg-danger/15 text-danger")}>
-      {sorted && (ok ? <CheckCircle2 className="size-3.5" /> : <XCircle className="size-3.5" />)}{t}
+      className={cn(CHIP, !sorted ? "bg-muted" : ok ? "border-success/50 bg-success/15 text-success" : "border-danger/50 bg-danger/15 text-danger")}>
+      {sorted && (ok ? <CheckCircle2 className={ICON} /> : <XCircle className={ICON} />)}<span className="min-w-0 break-words">{t}</span>
     </motion.span>
   );
 }
 
 /** A missing skill: click to include it (or not), with a bridge verdict badge once analysed. */
-function GapChip({ t, item, added, open, onOpen }: { t: string; item?: BridgeItem; added: boolean; open: boolean; onOpen: () => void }) {
-  const v = item ? VERDICT[item.verdict] : null;
-  return (
-    <button onClick={onOpen} aria-expanded={open} aria-label={`${t}${v ? `: ${v.label}` : ""}`}
-      className={cn("inline-flex items-center gap-1 rounded-full border px-3 py-1 text-sm transition hover:brightness-110",
-        added ? "border-primary/50 bg-primary/20 text-foreground" : "border-danger/50 bg-danger/15 text-danger")}>
-      {added ? <PlusCircle className="size-3.5" /> : <XCircle className="size-3.5" />}{t}
-      {v && <span aria-hidden className={cn("ml-0.5 rounded-full bg-background/70 px-1.5 text-xs font-semibold", v.cls)}>{v.mark}</span>}
-    </button>
-  );
-}
+const GapChip = forwardRef<HTMLButtonElement, { t: string; item?: BridgeItem; added: boolean; selfAttested: boolean; open: boolean; onOpen: () => void }>(
+  ({ t, item, added, selfAttested, open, onOpen }, ref) => {
+    const v = item ? VERDICT[item.verdict] : null;
+    return (
+      <button ref={ref} onClick={onOpen} aria-expanded={open} aria-haspopup="dialog" title={v?.label}
+        aria-label={`${t}${v ? `, ${v.label}` : ""}${added ? ", added" : ""}`}
+        className={cn(CHIP, "transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          open && "ring-2 ring-ring",
+          added ? (selfAttested ? "border-dashed border-warn/60 bg-warn/10 text-foreground" : "border-success/50 bg-success/15 text-foreground")
+            : "border-danger/50 bg-danger/15 text-danger")}>
+        {added ? <PlusCircle className={ICON} /> : <XCircle className={ICON} />}
+        <span className="min-w-0 break-words">{t}</span>
+        {v && <span aria-hidden className={cn("ml-0.5 shrink-0 rounded-full bg-background/80 px-1.5 text-xs font-semibold leading-5", v.cls)}>{v.mark}</span>}
+      </button>
+    );
+  });
+GapChip.displayName = "GapChip";
 
 export function MatchStep() {
   const job = useActiveJob();
   const { profile, jobs, activeJobId, setActiveJob, updateJob, setStep, addJob, setProfile } = useStore();
   const [bridging, setBridging] = useState(false);
   const [openGap, setOpenGap] = useState<string | null>(null);
+  const [gapAnchor, setGapAnchor] = useState<HTMLButtonElement | null>(null);
   const [loading, setLoading] = useState(false);
   const [sorted, setSorted] = useState(false);
   const [error, setError] = useState("");
@@ -101,10 +112,11 @@ export function MatchStep() {
     setProfile(p);
   };
   const gap = (t: string) => (
-    <span key={t} className="relative">
-      <GapChip t={t} item={bridgeOf(t)} added={!!attestedFor(t)} open={openGap === t} onOpen={() => setOpenGap(openGap === t ? null : t)} />
+    <span key={t} className="contents">
+      <GapChip ref={openGap === t ? setGapAnchor : undefined} t={t} item={bridgeOf(t)} added={!!attestedFor(t)}
+        selfAttested={!!attestedFor(t)?.self_attested} open={openGap === t} onOpen={() => setOpenGap(openGap === t ? null : t)} />
       {openGap === t && profile && (
-        <GapPopover skill={t} item={bridgeOf(t)} attested={attestedFor(t)} onClose={() => setOpenGap(null)}
+        <GapPopover skill={t} item={bridgeOf(t)} attested={attestedFor(t)} anchor={gapAnchor} onClose={() => setOpenGap(null)}
           onSave={(a) => setProfile(a ? upsertAttested(profile, a) : removeAttested(profile, t))} />
       )}
     </span>
@@ -161,8 +173,14 @@ export function MatchStep() {
                 </div>
               )}
             </LayoutGroup>
+            {sorted && job.bridge && (
+              <p className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground" aria-hidden>
+                {Object.values(VERDICT).map((v) => <span key={v.mark}><span className={cn("font-semibold", v.cls)}>{v.mark}</span> {v.label}</span>)}
+                <span><span className="font-semibold text-warn">┆</span> dashed = self-attested</span>
+              </p>
+            )}
             {sorted && m.missing.length > 0 && (
-              <p className="mt-4 text-xs text-muted-foreground">
+              <p className="mt-2 text-xs text-muted-foreground">
                 Have a missing skill under another name (e.g. Gen AI via LangChain)? Bridge gaps checks your experience; only added skills can appear in your documents.
               </p>
             )}
