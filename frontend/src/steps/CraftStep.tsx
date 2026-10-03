@@ -107,7 +107,7 @@ export function CraftStep() {
             <Card className="flex min-h-[380px] flex-col items-center justify-center gap-4 text-center">
               <div className="relative">
                 <motion.div animate={{ y: [0, -8, 0] }} transition={{ repeat: Infinity, duration: 3 }} className="flex size-20 items-center justify-center rounded-3xl bg-gradient-to-br from-primary to-accent">
-                  <Sparkles className="size-9 text-white" />
+                  <Sparkles className="size-9 text-primary-foreground" />
                 </motion.div>
               </div>
               <div><div className="text-lg font-semibold">No {KIND_LABEL[activeKind].toLowerCase()} yet</div>

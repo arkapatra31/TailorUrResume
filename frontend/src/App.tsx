@@ -64,7 +64,7 @@ export default function App() {
         <div className="mx-auto flex max-w-6xl flex-col gap-3">
           <div className="flex items-center justify-between gap-2">
             <div className="flex shrink-0 items-center gap-2.5">
-              <span className="flex size-8 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent shadow-lg sm:size-9"><Sparkles className="size-4 text-white sm:size-5" /></span>
+              <span className="flex size-8 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent shadow-lg sm:size-9"><Sparkles className="size-4 text-primary-foreground sm:size-5" /></span>
               <span className="hidden text-lg font-bold tracking-tight sm:inline">Tailor<span className="text-gradient">Ur</span>Resume</span>
             </div>
             {/* Phones: one compact row (logo, step icons, palette, theme) so the sticky bar stays under ~72px. */}

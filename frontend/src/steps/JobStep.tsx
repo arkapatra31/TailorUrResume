@@ -22,7 +22,7 @@ function Monogram({ name }: { name: string }) {
   const hue = AVATAR_HUES[[...name].reduce((h, c) => h + c.charCodeAt(0), 0) % AVATAR_HUES.length];
   return (
     <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-lg text-sm font-bold tracking-tight text-white shadow-inner"
-      style={{ background: `linear-gradient(135deg, hsl(${hue} 70% 30%), hsl(${(hue + 24) % 360} 75% 40%))` }}>{initials}</span>
+      style={{ background: `linear-gradient(135deg, hsl(${hue} 70% 26%), hsl(${(hue + 24) % 360} 75% 34%))` }}>{initials}</span>
   );
 }
 
