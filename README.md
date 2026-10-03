@@ -48,7 +48,7 @@ Backend:
 ```bash
 cd backend
 python -m venv .venv && source .venv/bin/activate
-pip install -r requirements-dev.txt
+pip install -r requirements.txt -r requirements-dev.txt
 uvicorn app.main:app --reload --port 8000
 curl localhost:8000/health
 ```
@@ -63,9 +63,25 @@ cd frontend
 npm install
 npm run dev        # http://localhost:5173, proxies /api to http://localhost:8000
 npm run build      # type-checks with tsc, then builds
+npm run test:e2e   # Playwright end-to-end tests (API mocked); needs a Chromium install
 ```
 
-Tests: `cd backend && pytest`.
+Tests: `cd backend && pytest`. End-to-end: `cd frontend && npm run test:e2e` starts the Vite dev server and runs the
+flow and polish specs against a mocked API. If Playwright cannot find its browser, set `PLAYWRIGHT_BROWSERS_PATH`
+(or `E2E_CHROMIUM` to a Chromium binary); `E2E_PORT` changes the dev-server port (default 5199).
+
+## Configuration
+
+Server-side environment variables:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `ALLOWED_OLLAMA_HOSTS` | `localhost,127.0.0.1,ollama,host.docker.internal` | Comma-separated hostnames a client may use as the Ollama base URL (`X-LLM-Base-Url`). Anything else is rejected with 400 (SSRF guard). The server's own `OLLAMA_URL` is always accepted. |
+| `OLLAMA_URL` | `http://localhost:11434` | Default Ollama endpoint. |
+| `MAX_UPLOAD_BYTES` | `5242880` (5 MB) | Maximum resume file size. Larger uploads get HTTP 413. |
+| `MAX_REQUEST_BYTES` | `10485760` (10 MB) | Hard cap on the whole upload request, including multipart framing; uploads are buffered in memory, never written to disk. |
+| `MAX_TEXT_CHARS` | `40000` | Maximum pasted/extracted text length. |
+| `CORS_ORIGINS` | local dev origins | Comma-separated allowed origins. |
 
 ## Docker
 
