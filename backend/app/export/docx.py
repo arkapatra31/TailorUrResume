@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import re
 
 from docx import Document as DocxDocument
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_TAB_ALIGNMENT
@@ -10,6 +11,20 @@ from docx.shared import Mm, Pt, RGBColor
 
 from ..schemas import Document
 from .styles import TEMPLATES
+
+
+# Characters that are illegal in XML 1.0 (python-docx would raise): NUL, most C0 controls.
+_XML_BAD = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\ufffe\uffff]")
+
+
+def _clean(value):
+    if isinstance(value, str):
+        return _XML_BAD.sub("", value)
+    if isinstance(value, list):
+        return [_clean(v) for v in value]
+    if isinstance(value, dict):
+        return {k: _clean(v) for k, v in value.items()}
+    return value
 
 
 def _rule(paragraph, color: str) -> None:
@@ -23,6 +38,7 @@ def _rule(paragraph, color: str) -> None:
 
 
 def export_docx(doc: Document, template: str) -> io.BytesIO:
+    doc = Document.model_validate(_clean(doc.model_dump()))
     t = TEMPLATES[template]
     d = DocxDocument()
     sec = d.sections[0]

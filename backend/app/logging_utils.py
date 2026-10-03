@@ -10,7 +10,7 @@ current_key: contextvars.ContextVar[str] = contextvars.ContextVar("current_key",
 
 _PATTERNS = [
     re.compile(r"sk-[A-Za-z0-9_\-]{8,}"),
-    re.compile(r"(?i)(x-llm-key['\"]?\s*[:=]\s*['\"]?)[^\s'\",}]+"),
+    re.compile(r"(?i)(x-llm-key['\"]?\s*[:=]\s*['\"]?)(?!%)[^\s'\",}]+"),
     re.compile(r"(?i)(bearer\s+)[A-Za-z0-9_\-\.]{8,}"),
 ]
 MASK = "[REDACTED]"
@@ -28,11 +28,22 @@ def redact(text: str) -> str:
     return text
 
 
+def _redact_args(args):
+    if isinstance(args, tuple):
+        return tuple(redact(a) if isinstance(a, str) else a for a in args)
+    if isinstance(args, dict):
+        return {k: (redact(v) if isinstance(v, str) else v) for k, v in args.items()}
+    return args
+
+
 class RedactingFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         try:
-            record.msg = redact(record.getMessage())
-            record.args = ()
+            # Keep msg and args separate so %-formatting (e.g. uvicorn's '%d' status) still works:
+            # redact only the string values and preserve the shape (tuple or mapping).
+            if isinstance(record.msg, str):
+                record.msg = redact(record.msg)
+            record.args = _redact_args(record.args)
             if record.exc_info:
                 record.exc_text = redact("".join(traceback.format_exception(*record.exc_info)))
                 record.exc_info = None
