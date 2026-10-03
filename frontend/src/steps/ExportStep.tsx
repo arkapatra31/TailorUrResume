@@ -58,7 +58,7 @@ export function ExportStep() {
             <div><CardTitle>Download {KIND_LABEL[activeKind]}</CardTitle><p className="mt-1 text-sm text-muted-foreground">PDF keeps selectable text for ATS parsers. DOCX is fully editable.</p></div>
             <div className="flex flex-wrap gap-3"><DownloadButton fmt="pdf" kind={activeKind} /><DownloadButton fmt="docx" kind={activeKind} /></div>
           </Card>
-          {g.flags.length > 0 && <p className="mt-3 text-sm text-warn">{g.flags.length} unverified claim(s) remain in this document. Review them in the Craft step before sending.</p>}
+          {g.flags.some((f) => f.level !== "info") && <p className="mt-3 text-sm text-warn">{g.flags.filter((f) => f.level !== "info").length} unverified claim(s) remain in this document. Review them in the Craft step before sending.</p>}
         </>
       ) : (
         <Card className="text-center text-muted-foreground">Generate a document in the Craft step first.</Card>

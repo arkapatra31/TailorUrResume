@@ -15,6 +15,7 @@ const arr = <T extends z.ZodTypeAny>(t: T) => z.array(t).nullish().transform((v)
 const profileSchema = z.object({
   contact, summary: str, experience: arr(experience), projects: arr(project), education: arr(education),
   skills: strs, certifications: strs, publications: strs,
+  attested_skills: arr(z.object({ skill: str, evidence: str, self_attested: z.boolean().nullish().transform((v) => !!v) })),
 });
 const jdSchema = z.object({
   title: str, company: str, location: str, seniority: str, summary: str,
@@ -34,7 +35,7 @@ const docSchema = z.object({
 });
 const generated = z.object({
   doc: docSchema,
-  flags: arr(z.object({ text: str, section: num(), item: num(), bullet: num(), unsupported: strs, reason: str })),
+  flags: arr(z.object({ text: str, section: num(), item: num(), bullet: num(), unsupported: strs, reason: str, level: z.enum(["warn", "info"]).catch("warn") })),
   generatedAt: num(Date.now()),
 });
 const jobSchema = z.object({
@@ -42,6 +43,8 @@ const jobSchema = z.object({
   url: str, rawText: str,
   fetched: z.object({ source: str, url: str, text: str, title: str, company: str, location: str }).nullish().transform((v) => v ?? undefined),
   jd: jdSchema.nullish().transform((v) => v ?? null),
+  bridge: arr(z.object({ skill: str, verdict: z.enum(["supported", "partial", "unsupported"]).catch("unsupported"), evidence: strs, rationale: str }))
+    .transform((v) => (v.length ? v : null)),
   match: matchSchema.nullish().transform((v) => (v ? { ...v, score: Math.min(100, Math.max(0, v.score)) } : null)),
   docs: z.record(z.string(), generated).nullish().transform((v) => {
     const out: Record<string, z.output<typeof generated>> = {};

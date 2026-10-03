@@ -4,7 +4,7 @@ from typing import AsyncIterator
 
 from app.llm.base import LLMProvider
 from app.schemas import (
-    BulletRewrite, Contact, Education, Experience, JobDescription, Profile, SemanticFit,
+    BridgeItem, BridgeResult, BulletRewrite, Contact, Education, Experience, JobDescription, Profile, SemanticFit,
 )
 
 SAMPLE_PROFILE = Profile(
@@ -37,6 +37,14 @@ Languages: Python, FastAPI
 """
 
 
+# What a model might say about SAMPLE_JD's missing skills; bridge.py must correct the overclaims.
+BRIDGE = BridgeResult(items=[
+    BridgeItem(skill="AWS", verdict="supported", evidence=["Lambda", "S3"], rationale="Cloud work"),  # not in profile
+    BridgeItem(skill="kubernetes", verdict="supported", evidence=["Docker"], rationale="Containers"),  # different tech
+    BridgeItem(skill="Rust", verdict="unsupported", evidence=[], rationale="No Rust"),
+])
+
+
 class FakeProvider(LLMProvider):
     name = "fake"
     model = "fake-model"
@@ -59,6 +67,8 @@ class FakeProvider(LLMProvider):
             return SAMPLE_JD.model_copy(deep=True)
         if schema is SemanticFit:
             return SemanticFit(score=80, strengths=["Strong Python"], gaps=["No cloud"], suggestions=["Learn AWS"])
+        if schema is BridgeResult:
+            return BRIDGE.model_copy(deep=True)
         if schema is BulletRewrite:
             return BulletRewrite(bullet="Built Python APIs handling 2M requests per day")
         raise AssertionError(schema)

@@ -11,6 +11,7 @@ import { Card, CardTitle } from "@/components/ui/card";
 import { Input, Label } from "@/components/ui/field";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
+import { attestedOf } from "@/lib/bridge";
 import { generate, KIND_LABEL, stopGeneration, useStream } from "@/lib/actions";
 import { parseMarkdown } from "@/lib/markdown";
 import type { Doc, DocKind } from "@/lib/types";
@@ -23,6 +24,7 @@ export function CraftStep() {
   const [view, setView] = useState<"edit" | "diff">("edit");
   const [busy, setBusy] = useState<string | null>(null);
   const [instr, setInstr] = useState("");
+  const [autoBridge, setAutoBridge] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => () => clearTimeout(timer.current), []);
@@ -72,7 +74,18 @@ export function CraftStep() {
   };
 
   const doc = streamDoc ?? g?.doc;
-  const flags = g?.flags ?? [];
+  const flags = (g?.flags ?? []).filter((f) => f.level !== "info");
+  const notes = (g?.flags ?? []).filter((f) => f.level === "info");
+  const added = attestedOf(profile).map((a) => a.skill).filter(Boolean);
+  const quick = added.length
+    ? ["Weave in added skills", ...added.slice(0, 3).map((s) => `Emphasize ${s}`)]
+    : [];
+  const addInstr = (q: string) => {
+    const text = q === "Weave in added skills"
+      ? "Weave the user-confirmed skills into the summary, skills and the most relevant bullets, grounded in their evidence"
+      : q;
+    setInstr((cur) => (cur.includes(text) ? cur : cur.trim() ? `${cur.trim()}; ${text}` : text));
+  };
 
   return (
     <div>
@@ -119,11 +132,30 @@ export function CraftStep() {
         <aside className="space-y-4">
           <Card className="space-y-3">
             <div><Label htmlFor="instr">Extra instructions (optional)</Label>
-              <Input id="instr" placeholder="e.g. emphasize leadership, keep to one page" value={instr} onChange={(e) => setInstr(e.target.value)} /></div>
+              <Input id="instr" placeholder="e.g. emphasize leadership, keep to one page" value={instr} onChange={(e) => setInstr(e.target.value)} />
+              {quick.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {quick.map((q) => (
+                    <button key={q} type="button" onClick={() => addInstr(q)}
+                      className="rounded-full border border-primary/50 bg-primary/15 px-2.5 py-0.5 text-xs hover:bg-primary/25">{q}</button>
+                  ))}
+                </div>
+              )}</div>
+            {!!job.match?.missing.length && (
+              <label className="flex cursor-pointer items-start gap-2 rounded-lg border p-2.5 text-sm">
+                <input type="checkbox" className="mt-0.5 size-4 accent-primary" checked={autoBridge} onChange={(e) => setAutoBridge(e.target.checked)} />
+                <span>
+                  Auto-add related missing skills
+                  <span className="block text-xs text-muted-foreground">
+                    We add only skills your existing experience backs (e.g. Gen AI from LangChain work). Skills you have no experience in, like an unused language, stay out.
+                  </span>
+                </span>
+              </label>
+            )}
             {stream.active ? (
               <Button className="w-full" variant="danger" onClick={stopGeneration}><Square />Stop</Button>
             ) : (
-              <Button className="w-full" onClick={() => generate(activeKind, instr)}>
+              <Button className="w-full" onClick={() => generate(activeKind, instr, autoBridge)}>
                 {g ? <><Sparkles />Regenerate {KIND_LABEL[activeKind]}</> : <><Sparkles />Generate {KIND_LABEL[activeKind]}</>}
               </Button>
             )}
@@ -146,6 +178,16 @@ export function CraftStep() {
                   ))}
                 </ul>
               )}
+            {notes.length > 0 && (
+              <ul className="mt-3 space-y-2 text-sm">
+                {notes.map((f, i) => (
+                  <li key={i} className="rounded-lg border border-primary/40 bg-primary/10 p-2.5">
+                    <div className="mb-1 flex flex-wrap gap-1">{f.unsupported.map((u) => <Badge key={u} tone="primary">{u}</Badge>)}</div>
+                    <p className="text-xs text-muted-foreground">{f.reason}</p>
+                  </li>
+                ))}
+              </ul>
+            )}
           </Card>
         </aside>
       </div>
