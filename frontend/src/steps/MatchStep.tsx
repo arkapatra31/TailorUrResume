@@ -149,7 +149,8 @@ export function MatchStep() {
             <Button variant="ghost" size="sm" onClick={run}><RefreshCw />Re-run</Button>
           </Card>
 
-          <Card>
+          {/* backdrop-filter makes this card a stacking context, so the popover's z-index stops here: lift the card while it is open. */}
+          <Card className={cn(openGap && "relative z-20")}>
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <CardTitle>Skills</CardTitle>
               {sorted && m.missing.length > 0 && (

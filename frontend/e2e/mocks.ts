@@ -37,31 +37,55 @@ export const doc = {
   ],
 };
 
+/** Bridge verdicts for `match.missing`: Kubernetes is backed by Docker work, Go has no support at all. */
+export const bridge = {
+  items: [
+    { skill: "Kubernetes", verdict: "supported", evidence: ["Docker"], rationale: "Containerised services with Docker." },
+    { skill: "Go", verdict: "unsupported", evidence: [], rationale: "No Go experience in the profile." },
+  ],
+};
+
 const json = (body: unknown, status = 200) => ({ status, contentType: "application/json", body: JSON.stringify(body) });
+const sseEvent = (event: string, data: unknown) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
 
-export interface MockOptions { matchFails?: number }
+type Flag = { text: string; section: number; item: number; bullet: number; unsupported: string[]; reason: string; level?: "warn" | "info" };
+type Body = any;
 
-/** Mock the whole backend API. Returns counters so tests can assert on calls. */
+export interface MockOptions {
+  matchFails?: number;
+  match?: typeof match;
+  bridge?: typeof bridge;
+  /** SSE `bridge` event to emit when the generate request has `auto_bridge: true`. */
+  autoBridge?: { items: typeof bridge.items; added: { skill: string; evidence: string; self_attested: boolean }[] };
+  flags?: Flag[];
+}
+
+/** Mock the whole backend API. Returns counters and request bodies so tests can assert on calls. */
 export async function mockApi(page: Page, opts: MockOptions = {}) {
-  const calls = { match: 0, headers: [] as Record<string, string>[] };
+  const calls = { match: 0, headers: [] as Record<string, string>[], bodies: {} as Record<string, Body[]> };
   await page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url());
     const p = url.pathname;
     const h = route.request().headers();
     calls.headers.push(h);
+    let body: Body = null;
+    try { body = route.request().postDataJSON(); } catch { /* multipart or empty */ }
+    (calls.bodies[p] ??= []).push(body);
     if (p === "/api/test-connection") return route.fulfill(json({ ok: true, provider: "anthropic", model: "m" }));
     if (p === "/api/profile/parse") return route.fulfill(json(profile));
     if (p === "/api/jd/extract") return route.fulfill(json(jd));
     if (p === "/api/match") {
       calls.match += 1;
       if (calls.match <= (opts.matchFails ?? 0)) return route.fulfill(json({ detail: "Model overloaded." }, 502));
-      return route.fulfill(json(match));
+      return route.fulfill(json(opts.match ?? match));
     }
+    if (p === "/api/bridge") return route.fulfill(json(opts.bridge ?? bridge));
     if (p === "/api/generate") {
       const sse =
-        `event: token\ndata: ${JSON.stringify({ text: "# Ada Lovelace\n\n## Summary\n" })}\n\n` +
-        `event: token\ndata: ${JSON.stringify({ text: "Engineer who builds reliable data pipelines.\n" })}\n\n` +
-        `event: done\ndata: ${JSON.stringify({ doc, flags: [] })}\n\n`;
+        (body?.auto_bridge && opts.autoBridge ? sseEvent("bridge", opts.autoBridge) : "") +
+        sseEvent("token", { text: "# Ada Lovelace\n\n## Summary\n" }) +
+        sseEvent("token", { text: "Engineer who builds reliable data pipelines.\n" }) +
+        sseEvent("done", { doc, flags: opts.flags ?? [] });
       return route.fulfill({ status: 200, contentType: "text/event-stream", body: sse });
     }
     if (p === "/api/check-truth") return route.fulfill(json({ flags: [] }));
@@ -82,25 +106,33 @@ export async function dumpStorage(page: Page) {
   });
 }
 
-/** Drive the UI through Key -> Profile -> Job -> Match -> Craft and generate a resume. */
-export async function reachCraft(page: Page) {
-  const press = async (name: RegExp) => {
-    const b = page.getByRole("button", { name });
-    await b.first().waitFor();
-    await page.waitForFunction((n) => document.querySelectorAll("main button").length > 0 && [...document.querySelectorAll("main button")].filter((x) => new RegExp(n).test(x.textContent ?? "")).length === 1, name.source);
-    await b.click();
-  };
+/** Click a button once the previous step has finished its exit animation (only one match left in <main>). */
+export async function press(page: Page, name: RegExp) {
+  const b = page.getByRole("button", { name });
+  await b.first().waitFor();
+  await page.waitForFunction((n) => document.querySelectorAll("main button").length > 0 && [...document.querySelectorAll("main button")].filter((x) => new RegExp(n).test(x.textContent ?? "")).length === 1, name.source);
+  await b.click();
+}
+
+/** Drive the UI through Key -> Profile -> Job -> Match and wait for the analysis to render. */
+export async function reachMatch(page: Page) {
   await page.goto("/");
   await page.getByLabel("API key").fill("sk-ant-test-key");
-  await press(/Continue/);
+  await press(page, /Continue/);
   await page.locator('input[type="file"]').setInputFiles({ name: "cv.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4 fake") });
   await page.getByText("Parsed from").waitFor();
-  await press(/Continue/);
-  await press(/Add a job/);
+  await press(page, /Continue/);
+  await press(page, /Add a job/);
   await page.getByLabel("Job description").fill("We need a Backend Engineer with Python and PostgreSQL experience. Docker is a plus.");
-  await press(/Extract details/);
-  await press(/Analyze match/);
-  await press(/Craft documents/);
-  await press(/Generate Resume/);
+  await press(page, /Extract details/);
+  await press(page, /Analyze match/);
+  await page.getByText("Semantic fit", { exact: true }).waitFor();
+}
+
+/** Drive the UI through Key -> Profile -> Job -> Match -> Craft and generate a resume. */
+export async function reachCraft(page: Page) {
+  await reachMatch(page);
+  await press(page, /Craft documents/);
+  await press(page, /Generate Resume/);
   await page.locator("#main").getByText("Analytical Engines Ltd").first().waitFor();
 }
