@@ -13,7 +13,9 @@ import { useActiveJob, useStore } from "@/store";
 
 function Chip({ t, ok, sorted }: { t: string; ok: boolean; sorted: boolean }) {
   return (
-    <motion.span layout layoutId={`chip-${t}`} transition={{ type: "spring", stiffness: 260, damping: 24 }}
+    // No `layout`/`layoutId` here: projection nodes inside a step that is animating out stalled AnimatePresence, leaving the next step blank
+    // once the chips had re-sorted. A short pop-in on re-sort keeps the effect without that.
+    <motion.span initial={{ opacity: 0.4, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ type: "spring", stiffness: 260, damping: 24 }}
       className={cn("inline-flex items-center gap-1 rounded-full border px-3 py-1 text-sm", !sorted ? "bg-muted" : ok ? "border-success/50 bg-success/15 text-success" : "border-danger/50 bg-danger/15 text-danger")}>
       {sorted && (ok ? <CheckCircle2 className="size-3.5" /> : <XCircle className="size-3.5" />)}{t}
     </motion.span>

@@ -50,3 +50,21 @@ test.describe("phone", () => {
     expect(Number(await btn.evaluate((el) => getComputedStyle(el).opacity))).toBe(1);
   });
 });
+
+test("leaving Match after the chips re-sort still shows the next step", async ({ page }) => {
+  await mockApi(page);
+  await page.goto("/");
+  await page.getByLabel("API key").fill("sk-ant-test-key");
+  const next = async (name: RegExp) => { const b = page.getByRole("button", { name }); await expect(b).toHaveCount(1); await b.click(); };
+  await next(/Continue/);
+  await page.locator('input[type="file"]').setInputFiles({ name: "cv.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4 fake") });
+  await page.getByText("Parsed from").waitFor();
+  await next(/Continue/);
+  await next(/Add a job/);
+  await page.getByLabel("Job description").fill("We need a Backend Engineer with Python and PostgreSQL experience. Docker is a plus.");
+  await next(/Extract details/);
+  await next(/Analyze match/);
+  await expect(page.getByText(/Matched \(/)).toBeVisible({ timeout: 6000 }); // chips have re-sorted
+  await next(/Craft documents/);
+  await expect(page.getByRole("heading", { level: 1, name: /Craft your documents/ })).toBeVisible();
+});
