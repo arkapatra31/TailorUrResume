@@ -37,10 +37,10 @@ Languages: Python, FastAPI
 """
 
 
-# What a model might say about SAMPLE_JD's missing skills; bridge.py must correct the overclaims.
+# What a model might say about SAMPLE_JD's missing skills; grounding drops fabricated evidence.
 BRIDGE = BridgeResult(items=[
     BridgeItem(skill="AWS", verdict="supported", evidence=["Lambda", "S3"], rationale="Cloud work"),  # not in profile
-    BridgeItem(skill="kubernetes", verdict="supported", evidence=["Docker"], rationale="Containers"),  # different tech
+    BridgeItem(skill="kubernetes", verdict="partial", evidence=["Docker"], rationale="Containers"),
     BridgeItem(skill="Rust", verdict="unsupported", evidence=[], rationale="No Rust"),
 ])
 

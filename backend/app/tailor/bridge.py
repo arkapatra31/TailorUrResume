@@ -1,16 +1,16 @@
 """Skill bridges: for each job skill missing from the profile, judge whether related experience
 the candidate already has genuinely supports it (e.g. Gen AI <- LangChain, RAG, Claude SDK).
 
-The model's verdicts are re-checked here: evidence must literally appear in the profile, and a
-specific technology (Java, Kubernetes...) is never "supported" by a different one. The user then
+The model's verdicts are re-checked here: evidence must literally appear in the profile.
+The LLM decides whether a related technology genuinely demonstrates the skill (e.g.
+PostgreSQL -> SQL) or is merely transferable (e.g. Python -> Java). The user then
 decides what to include; nothing is added to their documents automatically.
 """
 from __future__ import annotations
 
 from ..llm.base import LLMProvider
 from ..schemas import BridgeItem, BridgeRequest, BridgeResult
-from .text import norm, profile_text, term_in, vocab
-from .truth import TECH
+from .text import profile_text, term_in, vocab
 
 SYSTEM = (
     "You are a strict, honest career coach. For each job skill the candidate's profile does not "
@@ -29,9 +29,6 @@ SYSTEM = (
 def _ground(item: BridgeItem, voc: set[str], low: str) -> BridgeItem:
     evidence = [e.strip() for e in item.evidence if e.strip() and term_in(e.strip(), voc, low)]
     verdict = item.verdict if evidence else "unsupported"
-    is_tech = bool({item.skill.strip().lower(), norm(item.skill)} & TECH)
-    if verdict == "supported" and is_tech and not term_in(item.skill, vocab(" ".join(evidence)), " ".join(evidence).lower()):
-        verdict = "partial"  # related tech is transferable, not the same skill
     rationale = item.rationale.strip()
     if verdict == "unsupported" and item.verdict != "unsupported":
         rationale = "No matching experience found in your profile."
