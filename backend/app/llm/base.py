@@ -31,9 +31,14 @@ class ProviderConfig:
         return f"ProviderConfig(provider={self.provider!r}, model={self.model!r})"
 
 
+_FENCE_RE = re.compile(r"```(?:json|JSON)?[ \t]*\r?\n?(.*?)(?:```|\Z)", re.S)
+_TRAILING_COMMA_RE = re.compile(r",(\s*[}\]])")
+
+
 def extract_json(text: str) -> str:
+    """Best-effort slice of the JSON payload out of a model reply (kept for callers/tests)."""
     text = text.strip()
-    fence = re.search(r"```(?:json)?\s*(.*?)```", text, re.S)
+    fence = _FENCE_RE.search(text)
     if fence:
         text = fence.group(1).strip()
     start = min([i for i in (text.find("{"), text.find("[")) if i >= 0], default=-1)
@@ -43,8 +48,56 @@ def extract_json(text: str) -> str:
     return text[start : end + 1] if end > start else text[start:]
 
 
+_STRING_RE = re.compile(r'"(?:\\.|[^"\\])*"')
+
+
+def _strip_trailing_commas(text: str) -> str:
+    """Remove commas that directly precede a closing bracket, ignoring anything inside strings."""
+    masked = _STRING_RE.sub(lambda m: '"' + "\x00" * (len(m.group(0)) - 2) + '"', text)
+    drop = {m.start() for m in re.finditer(r",(?=\s*[}\]])", masked)}
+    return "".join(c for i, c in enumerate(text) if i not in drop) if drop else text
+
+
+def parse_model_json(raw: str, schema: Type[T]) -> T:
+    """Tolerantly parse a model reply into `schema`.
+
+    Strips code fences, then scans from every "{" with JSONDecoder.raw_decode (so prose before or
+    after the object, or several objects, are fine). Each text is tried as-is and once more with
+    trailing commas removed. Of the objects that validate, the one that sets the most schema fields
+    wins (so a stray "{}" in the prose never beats the real answer).
+    """
+    decoder = json.JSONDecoder()
+    texts = [m.group(1) for m in _FENCE_RE.finditer(raw)] + [raw]
+    best: Optional[T] = None
+    last: Exception = ValueError("no JSON object found")
+    for text in texts:
+        for variant in dict.fromkeys((text, _strip_trailing_commas(text))):
+            skip_until = 0
+            for m in re.finditer(r"\{", variant):
+                if m.start() < skip_until:
+                    continue  # nested inside an object we already decoded
+                try:
+                    obj, end = decoder.raw_decode(variant, m.start())
+                except ValueError as e:
+                    last = e
+                    continue
+                skip_until = end
+                try:
+                    cand = schema.model_validate(obj)
+                except ValidationError as e:
+                    last = e
+                    continue
+                if best is None or len(cand.model_fields_set) > len(best.model_fields_set):
+                    best = cand
+            if best is not None:
+                return best
+    raise ValueError(str(last))
+
+
 class LLMProvider(ABC):
     name = "base"
+    #: True when the last stream()/complete() stopped because the output token limit was hit.
+    truncated = False
 
     @abstractmethod
     async def complete(self, system: str, prompt: str, json_mode: bool = False) -> str:
@@ -67,8 +120,8 @@ class LLMProvider(ABC):
         )
         raw = await self.complete(sys_full, prompt, json_mode=True)
         try:
-            return schema.model_validate_json(extract_json(raw))
-        except (ValidationError, ValueError) as first_err:
+            return parse_model_json(raw, schema)
+        except ValueError as first_err:
             if not retry:
                 raise LLMError("The model returned invalid JSON.") from first_err
             repair = (
@@ -77,6 +130,6 @@ class LLMProvider(ABC):
             )
             raw2 = await self.complete(sys_full, repair, json_mode=True)
             try:
-                return schema.model_validate_json(extract_json(raw2))
-            except (ValidationError, ValueError) as err:
+                return parse_model_json(raw2, schema)
+            except ValueError as err:
                 raise LLMError("The model returned invalid JSON after a repair attempt.") from err

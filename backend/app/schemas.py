@@ -3,10 +3,40 @@ from __future__ import annotations
 
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from typing import Any, get_origin
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
-class Contact(BaseModel):
+class Lenient(BaseModel):
+    """Base for models filled by an LLM: tolerate the usual sloppiness instead of failing validation.
+
+    * null / missing values fall back to the field default (nulls inside lists are dropped)
+    * numbers given for text fields become text ("2019" not 2019)
+    * a lone string given for a list field becomes a one-item list
+    """
+
+    model_config = ConfigDict(coerce_numbers_to_str=True)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _tolerate(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        out: dict[str, Any] = {}
+        for k, v in data.items():
+            if v is None:
+                continue
+            f = cls.model_fields.get(k)
+            if isinstance(v, list):
+                v = [x for x in v if x is not None]
+            elif isinstance(v, str) and f is not None and get_origin(f.annotation) is list:
+                v = [v] if v.strip() else []
+            out[k] = v
+        return out
+
+
+class Contact(Lenient):
     name: str = ""
     email: str = ""
     phone: str = ""
@@ -14,7 +44,7 @@ class Contact(BaseModel):
     links: list[str] = Field(default_factory=list)
 
 
-class Experience(BaseModel):
+class Experience(Lenient):
     company: str = ""
     title: str = ""
     location: str = ""
@@ -23,14 +53,14 @@ class Experience(BaseModel):
     bullets: list[str] = Field(default_factory=list)
 
 
-class Project(BaseModel):
+class Project(Lenient):
     name: str = ""
     description: str = ""
     tech: list[str] = Field(default_factory=list)
     bullets: list[str] = Field(default_factory=list)
 
 
-class Education(BaseModel):
+class Education(Lenient):
     school: str = ""
     degree: str = ""
     field: str = ""
@@ -39,7 +69,7 @@ class Education(BaseModel):
     details: list[str] = Field(default_factory=list)
 
 
-class Profile(BaseModel):
+class Profile(Lenient):
     contact: Contact = Field(default_factory=Contact)
     summary: str = ""
     experience: list[Experience] = Field(default_factory=list)
@@ -50,7 +80,7 @@ class Profile(BaseModel):
     publications: list[str] = Field(default_factory=list)
 
 
-class JobDescription(BaseModel):
+class JobDescription(Lenient):
     title: str = ""
     company: str = ""
     location: str = ""
@@ -63,11 +93,22 @@ class JobDescription(BaseModel):
     source_url: str = ""
 
 
-class SemanticFit(BaseModel):
-    score: float = Field(0, ge=0, le=100)
+class SemanticFit(Lenient):
+    score: float = Field(0, description="0-100")
     strengths: list[str] = Field(default_factory=list)
     gaps: list[str] = Field(default_factory=list)
     suggestions: list[str] = Field(default_factory=list)
+
+    @field_validator("score", mode="before")
+    @classmethod
+    def _clamp(cls, v: Any) -> float:
+        try:
+            x = float(str(v).strip().rstrip("%"))
+        except (TypeError, ValueError):
+            return 0.0
+        if x != x:  # NaN
+            return 0.0
+        return max(0.0, min(100.0, x))
 
 
 class MatchResult(BaseModel):
@@ -114,7 +155,7 @@ class TruthFlag(BaseModel):
     reason: str = "Not traceable to your profile"
 
 
-class BulletRewrite(BaseModel):
+class BulletRewrite(Lenient):
     bullet: str
 
 

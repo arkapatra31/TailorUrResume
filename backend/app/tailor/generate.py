@@ -111,6 +111,9 @@ async def generate_events(provider: LLMProvider, req: GenerateRequest) -> AsyncI
     async for chunk in provider.stream(system, prompt):
         buf.append(chunk)
         yield {"event": "token", "data": {"text": chunk}}
+    if getattr(provider, "truncated", False):
+        # Do not pretend the document is complete: tell the client the model hit its token limit.
+        yield {"event": "warning", "data": {"detail": "The model hit its output limit, so this document may be cut off. Regenerate or shorten your instructions."}}
     doc = parse_markdown("".join(buf), req.kind)
     flags = check_document(req.profile, doc, req.jd)
     yield {

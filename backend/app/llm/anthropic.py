@@ -8,6 +8,7 @@ import anthropic
 from .base import LLMError, LLMProvider, ProviderConfig
 
 MAX_TOKENS = 8192
+TRUNCATED_MESSAGE = "The model ran out of output tokens and its reply was cut off. Try again with shorter input."
 
 
 def _wrap(err: Exception) -> LLMError:
@@ -46,9 +47,13 @@ class AnthropicProvider(LLMProvider):
             )
         except Exception as e:  # noqa: BLE001
             raise _wrap(e) from None
+        self.truncated = getattr(msg, "stop_reason", None) == "max_tokens"
+        if self.truncated:
+            raise LLMError(TRUNCATED_MESSAGE, 502)
         return "".join(b.text for b in msg.content if getattr(b, "type", "") == "text")
 
     async def stream(self, system: str, prompt: str) -> AsyncIterator[str]:
+        self.truncated = False
         try:
             async with self._client.messages.stream(
                 model=self.model,
@@ -58,5 +63,7 @@ class AnthropicProvider(LLMProvider):
             ) as s:
                 async for text in s.text_stream:
                     yield text
+                final = await s.get_final_message()
+                self.truncated = getattr(final, "stop_reason", None) == "max_tokens"
         except Exception as e:  # noqa: BLE001
             raise _wrap(e) from None

@@ -48,6 +48,7 @@ class OllamaProvider(LLMProvider):
             raise LLMError(GENERIC_ERROR) from None
 
     async def stream(self, system: str, prompt: str) -> AsyncIterator[str]:
+        self.truncated = False
         try:
             async with self._client() as c:
                 async with c.stream(
@@ -62,6 +63,7 @@ class OllamaProvider(LLMProvider):
                         if chunk:
                             yield chunk
                         if data.get("done"):
+                            self.truncated = data.get("done_reason") == "length"
                             break
         except (httpx.HTTPError, ValueError, KeyError, AttributeError, OSError):
             raise LLMError(GENERIC_ERROR) from None
