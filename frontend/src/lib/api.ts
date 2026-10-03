@@ -57,6 +57,7 @@ export const api = {
     body: { kind: Doc["kind"]; profile: Profile; jd: JobDescription; match: MatchResult | null; instructions?: string },
     onToken: (t: string) => void,
     signal?: AbortSignal,
+    onWarning?: (detail: string) => void,
   ): Promise<GeneratedDoc> {
     let r: Response;
     try {
@@ -82,6 +83,7 @@ export const api = {
         if (!ev || !data) continue;
         const payload = JSON.parse(data);
         if (ev === "token") onToken(payload.text);
+        else if (ev === "warning") onWarning?.(payload.detail ?? "The output may be incomplete.");
         else if (ev === "error") throw new ApiError(payload.detail ?? "Generation failed.", 502);
         else if (ev === "done") result = { doc: payload.doc, flags: payload.flags, generatedAt: Date.now() };
       }

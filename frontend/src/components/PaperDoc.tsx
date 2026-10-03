@@ -78,6 +78,7 @@ export function PaperDoc({ doc, template = "classic", flags = [], editable, stre
               {(it.heading || it.dates) && (
                 <div className="flex items-baseline justify-between gap-2">
                   <span>
+                    <FlagMark f={flagMap.get(`${si}:${ii}:-2`)} />
                     <b><Editable value={it.heading} editable={editable} onCommit={(v) => edit((d) => { d.sections[si].items[ii].heading = v; })} /></b>
                     {it.subheading && <i> — <Editable value={it.subheading} editable={editable} onCommit={(v) => edit((d) => { d.sections[si].items[ii].subheading = v; })} /></i>}
                   </span>

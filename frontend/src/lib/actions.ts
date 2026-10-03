@@ -24,6 +24,7 @@ export async function generate(kind: DocKind, instructions = "") {
       { kind, profile: s.profile, jd: job.jd, match: job.match, instructions },
       (t) => useStream.setState((st) => ({ text: st.text + t })),
       controller.signal,
+      (detail) => toast.warning(detail, { duration: 9000 }),
     );
     useStore.getState().setDoc(job.id, kind, result);
     toast.success(`${KIND_LABEL[kind]} ready`, {
