@@ -22,13 +22,20 @@ export function ScoreGauge({ score, size = 220, label = "ATS match" }: { score: 
     <div className="relative" style={{ width: size, height: size }} role="img" aria-label={`${label}: ${score} out of 100`}>
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="-rotate-90">
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="hsl(var(--muted))" strokeWidth="12" />
+        {/* Soft glow as a wider translucent stroke: a CSS drop-shadow filter on the circle renders as a square box. */}
+        <motion.circle
+          cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth="22" strokeLinecap="round" opacity={0.18}
+          strokeDasharray={circ}
+          initial={{ strokeDashoffset: circ }}
+          animate={{ strokeDashoffset: circ * (1 - score / 100) }}
+          transition={{ duration: reduce ? 0 : 1.6, ease: [0.22, 1, 0.36, 1] }}
+        />
         <motion.circle
           cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth="12" strokeLinecap="round"
           strokeDasharray={circ}
           initial={{ strokeDashoffset: circ }}
           animate={{ strokeDashoffset: circ * (1 - score / 100) }}
           transition={{ duration: reduce ? 0 : 1.6, ease: [0.22, 1, 0.36, 1] }}
-          style={{ filter: `drop-shadow(0 0 10px ${color})` }}
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
