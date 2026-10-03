@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>{{ doc.name or "Document" }}</title>
+<style>
+@page { size: A4; margin: {{ t.margin }}; }
+* { box-sizing: border-box; }
+body { font-family: {{ t.font }}; font-size: {{ t.size }}; line-height: {{ t.leading }}; color: #111; margin: 0; }
+h1 { font-size: {{ t.h1 }}; margin: 0 0 2pt; letter-spacing: {{ t.h1_spacing }}; text-align: {{ t.align }}; color: {{ t.accent }}; }
+.contact { text-align: {{ t.align }}; font-size: 0.92em; color: #333; margin-bottom: 8pt; }
+h2 { font-size: 1em; text-transform: uppercase; letter-spacing: 0.08em; color: {{ t.accent }};
+     border-bottom: {{ t.rule }}; margin: 10pt 0 4pt; padding-bottom: 1pt; }
+.item { margin-bottom: 5pt; page-break-inside: avoid; }
+.row { display: flex; justify-content: space-between; align-items: baseline; }
+.heading { font-weight: bold; }
+.sub { font-style: italic; color: #333; }
+.dates { color: #333; font-size: 0.92em; white-space: nowrap; margin-left: 8pt; }
+ul { margin: 2pt 0 0 14pt; padding: 0; }
+li { margin-bottom: 1.5pt; }
+p { margin: 0 0 4pt; }
+.letter p { margin-bottom: 9pt; }
+</style></head><body>
+{% if doc.name %}<h1>{{ doc.name }}</h1>{% endif %}
+{% if doc.contact %}<div class="contact">{{ doc.contact | join("  |  ") }}</div>{% endif %}
+{% for s in doc.sections %}
+  {% if s.title and doc.kind != "cover_letter" %}<h2>{{ s.title }}</h2>{% endif %}
+  <div {% if doc.kind == "cover_letter" %}class="letter"{% endif %}>
+  {% for p in s.paragraphs %}<p>{{ p }}</p>{% endfor %}
+  </div>
+  {% for it in s.items %}
+  <div class="item">
+    {% if it.heading or it.dates %}<div class="row"><span><span class="heading">{{ it.heading }}</span>{% if it.subheading %}<span class="sub"> — {{ it.subheading }}</span>{% endif %}</span><span class="dates">{{ it.dates }}</span></div>{% endif %}
+    {% if it.note %}<p>{{ it.note }}</p>{% endif %}
+    {% if it.bullets %}<ul>{% for b in it.bullets %}<li>{{ b }}</li>{% endfor %}</ul>{% endif %}
+  </div>
+  {% endfor %}
+{% endfor %}
+</body></html>
