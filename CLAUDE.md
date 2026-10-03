@@ -27,8 +27,9 @@ without fabricating anything. FastAPI backend (`backend/`) + React/Vite/TypeScri
   (`matched`, `missing`, `gaps`, `suggestions` = "Next steps" in the UI).
 - `tailor/bridge.py` (`POST /api/bridge`): judges each missing skill `supported | partial | unsupported`
   against existing experience (e.g. Gen AI <- LangChain, Claude SDK). The LLM verdict is re-grounded:
-  evidence must literally appear in the profile, and a specific technology (Java, Kubernetes...) is never
-  "supported" by a different one (capped at `partial`).
+  evidence must literally appear in the profile (fabricated evidence collapses the verdict to
+  `unsupported`). The LLM decides whether related tech genuinely demonstrates the skill (e.g.
+  PostgreSQL -> SQL = supported) or is merely transferable (e.g. Python -> Java = partial).
 - `tailor/generate.py`: streamed SSE generation (`token`, `bridge`, `warning`, `done` events).
   - `Profile.attested_skills` (user-approved on Match, or auto-added) are claimable, grounded in their evidence;
     all other missing skills go in the "do not claim" list. They are worked in by rephrasing the related

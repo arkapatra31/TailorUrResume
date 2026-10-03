@@ -8,6 +8,68 @@ check that flags any claim not traceable to your profile. Export to PDF or DOCX.
 - **Frontend:** Vite, React, TypeScript, Tailwind, Radix primitives, Framer Motion, Zustand (no persistence).
 - **Providers:** Anthropic (your API key) or a local Ollama model.
 
+## Architecture
+
+```mermaid
+flowchart LR
+  subgraph Browser["Browser · React + Vite (memory only)"]
+    Steps["steps/*<br/>Key · Profile · Job · Match · Craft · Export"]
+    Store["store.ts<br/>zustand, no persistence"]
+    Api["lib/api.ts · lib/actions.ts<br/>adds X-LLM-* headers, reads SSE"]
+    Session["lib/session.ts<br/>Save / Load JSON (key excluded)"]
+    Steps <--> Store
+    Store <--> Session
+    Steps --> Api
+  end
+
+  Proxy["Vite dev proxy :5173<br/>or nginx :3000 in Docker<br/>(proxy_buffering off for SSE)"]
+
+  subgraph Backend["FastAPI · backend/app (stateless, no disk)"]
+    MW["Middleware<br/>uploads.py size cap · CORS<br/>key_scope + logging_utils redaction"]
+    Routes["main.py<br/>/api/* routes"]
+    Parse["profile/parse.py<br/>PDF/DOCX → text → Profile"]
+    Fetch["jd/fetchers.py<br/>LinkedIn · Greenhouse · Lever · generic<br/>SSRF guard"]
+    Extract["jd/extract.py<br/>text → JobDescription"]
+    Match["tailor/match.py<br/>keyword 55% + semantic 45%"]
+    Bridge["tailor/bridge.py<br/>missing skill → supported / partial / unsupported<br/>evidence re-grounded in profile"]
+    Gen["tailor/generate.py<br/>prompt → stream → Document"]
+    Truth["tailor/truth.py<br/>flags claims not in profile"]
+    Export["export/<br/>pdf.py (WeasyPrint) · docx.py"]
+    Factory["llm/factory.py<br/>provider built per request"]
+  end
+
+  subgraph LLM["LLM provider (your choice)"]
+    Anthropic["Anthropic API"]
+    Ollama["Ollama<br/>(ALLOWED_OLLAMA_HOSTS)"]
+  end
+
+  Boards["Job boards / career pages"]
+
+  Api --> Proxy --> MW --> Routes
+  Routes --> Parse & Fetch & Extract & Match & Bridge & Gen & Truth & Export
+  Gen -- "auto_bridge" --> Bridge
+  Gen -- "on done" --> Truth
+  Parse & Extract & Match & Bridge & Gen --> Factory
+  Factory --> Anthropic & Ollama
+  Fetch --> Boards
+  Export -. "BytesIO stream" .-> Api
+```
+
+Where each step happens:
+
+| Step | Frontend | Endpoint | Backend | LLM |
+| --- | --- | --- | --- | --- |
+| 1. Key | `steps/KeyStep.tsx` | `POST /api/test-connection` | `llm/factory.py` builds the provider from `X-LLM-*` headers and pings it | yes |
+| 2. Profile | `steps/ProfileStep.tsx`, `components/ProfileEditor.tsx` | `POST /api/profile/parse` | `uploads.py` parses multipart in memory, `profile/parse.py` extracts text and structures it via `complete_json` | yes |
+| 3. Job | `steps/JobStep.tsx` | `POST /api/jd/fetch`, `POST /api/jd/extract` | `jd/fetchers.py` fetches the posting (no LLM), `jd/extract.py` turns text into a `JobDescription` | extract only |
+| 4. Match | `steps/MatchStep.tsx`, `components/GapPopover.tsx` | `POST /api/match`, `POST /api/bridge` | `tailor/match.py` scores coverage + semantic fit, `tailor/bridge.py` judges missing skills against existing experience | yes |
+| 5. Craft | `steps/CraftStep.tsx`, `lib/actions.ts`, `components/DiffView.tsx` | `POST /api/generate` (SSE), `POST /api/regenerate-bullet`, `POST /api/check-truth` | `tailor/generate.py` streams `bridge` / `token` / `warning` / `done` events, `tailor/truth.py` flags unverified claims | yes (truth check is heuristic) |
+| 6. Export | `steps/ExportStep.tsx`, `components/TemplatePicker.tsx` | `POST /api/export/{pdf,docx}` | `export/pdf.py` (HTML template + WeasyPrint) or `export/docx.py`, built in `BytesIO` | no |
+
+All state (profile, jobs, match results, documents) lives in the browser store and is sent with each request;
+the backend keeps nothing between calls. LLM JSON goes through `LLMProvider.complete_json` in `llm/base.py`
+(one repair retry, errors surface as `LLMError`).
+
 ## Statelessness and privacy
 
 - Uploads are parsed in memory; exports are built in `BytesIO` and streamed back.
@@ -97,7 +159,7 @@ For Ollama pick the "Ollama (local)" provider in the UI and use a model you have
 ## API (all stateless)
 
 `GET /health` · `POST /api/test-connection` · `POST /api/profile/parse` · `POST /api/jd/fetch` · `POST /api/jd/extract` ·
-`POST /api/match` · `POST /api/generate` (SSE) · `POST /api/regenerate-bullet` · `POST /api/check-truth` ·
+`POST /api/match` · `POST /api/bridge` · `POST /api/generate` (SSE) · `POST /api/regenerate-bullet` · `POST /api/check-truth` ·
 `POST /api/export/{pdf,docx}`. LLM routes read `X-LLM-Provider`, `X-LLM-Key`, `X-LLM-Model` (and `X-LLM-Base-Url` for Ollama).
 
 ## Limitations

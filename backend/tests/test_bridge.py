@@ -40,18 +40,31 @@ def test_bridge_endpoint_shape_and_grounding(client):
 def test_bridge_supports_umbrella_skill(provider, client):
     provider_result = BridgeResult(items=[
         BridgeItem(skill="Gen AI", verdict="supported", evidence=["LangChain", "Claude SDK"]),
-        BridgeItem(skill="Java", verdict="supported", evidence=["Python"]),
+        BridgeItem(skill="Java", verdict="partial", evidence=["Python"]),  # LLM decides Python != Java
     ])
     provider.complete_json = lambda *a, **k: _async(provider_result)
     r = client.post("/api/bridge", headers=H, json={
         "profile": genai_profile().model_dump(), "jd": GENAI_JD.model_dump(), "missing": ["Gen AI", "Java"]})
     items = {i["skill"]: i for i in r.json()["items"]}
     assert items["Gen AI"]["verdict"] == "supported"
-    assert items["Java"]["verdict"] == "partial"  # Python is not Java
+    assert items["Java"]["verdict"] == "partial"  # LLM correctly judges Python != Java
 
 
 async def _async(v):
     return v
+
+
+def test_bridge_implies_sql_from_postgres(provider, client):
+    profile = SAMPLE_PROFILE.model_copy(deep=True)
+    profile.skills += ["Postgres"]
+    provider_result = BridgeResult(items=[
+        BridgeItem(skill="SQL", verdict="supported", evidence=["Postgres"]),
+    ])
+    provider.complete_json = lambda *a, **k: _async(provider_result)
+    r = client.post("/api/bridge", headers=H, json={
+        "profile": profile.model_dump(), "jd": SAMPLE_JD.model_dump(), "missing": ["SQL"]})
+    items = {i["skill"]: i for i in r.json()["items"]}
+    assert items["SQL"]["verdict"] == "supported"  # Postgres implies SQL
 
 
 def test_bridge_empty_missing_skips_llm(provider, client):

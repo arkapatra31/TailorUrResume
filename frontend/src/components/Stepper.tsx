@@ -36,12 +36,8 @@ export function Stepper({ canGo, compact = false }: { canGo: (i: number) => bool
   if (compact) return <CompactStepper canGo={canGo} />;
   const step = useStore((s) => s.step);
   const setStep = useStore((s) => s.setStep);
-  const pct = (step / (STEPS.length - 1)) * 100;
   return (
-    <nav aria-label="Progress" className="glass relative mx-auto hidden w-full max-w-4xl sm:block rounded-2xl px-3 py-3 sm:px-8">
-      <div className="absolute left-[8%] right-[8%] top-[34px] h-0.5 rounded bg-muted sm:top-[38px]">
-        <motion.div className="h-full rounded bg-gradient-to-r from-primary to-accent" animate={{ width: `${pct}%` }} transition={{ type: "spring", stiffness: 120, damping: 20 }} />
-      </div>
+    <nav aria-label="Progress" className="glass mx-auto hidden w-full max-w-4xl sm:block rounded-2xl px-3 py-3 sm:px-8">
       <ol className="relative flex justify-between">
         {STEPS.map((label, i) => {
           const Icon = ICONS[i];
