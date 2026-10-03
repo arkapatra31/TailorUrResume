@@ -4,6 +4,15 @@ import os
 DEFAULT_ANTHROPIC_MODEL = os.getenv("DEFAULT_ANTHROPIC_MODEL", "claude-sonnet-5-5")
 DEFAULT_OLLAMA_MODEL = os.getenv("DEFAULT_OLLAMA_MODEL", "llama3.1")
 DEFAULT_OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
+DEFAULT_ALLOWED_OLLAMA_HOSTS = "localhost,127.0.0.1,ollama,host.docker.internal"
+
+
+def allowed_ollama_hosts() -> set[str]:
+    """Hosts a client may point X-LLM-Base-Url at (read per call so it can be changed in tests)."""
+    raw = os.getenv("ALLOWED_OLLAMA_HOSTS", DEFAULT_ALLOWED_OLLAMA_HOSTS)
+    return {h.strip().lower().strip("[]") for h in raw.split(",") if h.strip()}
+
+
 CORS_ORIGINS = [
     o.strip()
     for o in os.getenv(

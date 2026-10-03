@@ -9,6 +9,11 @@ import httpx
 from .base import LLMError, LLMProvider, ProviderConfig
 
 
+# One message for every failure (refused, DNS, timeout, TLS, bad status, bad body) so the endpoint
+# cannot be used as an oracle to probe internal hosts and ports.
+GENERIC_ERROR = "Could not reach Ollama. Is it running and is the URL correct?"
+
+
 class OllamaProvider(LLMProvider):
     name = "ollama"
 
@@ -18,7 +23,7 @@ class OllamaProvider(LLMProvider):
         self._transport = transport
 
     def _client(self) -> httpx.AsyncClient:
-        return httpx.AsyncClient(timeout=httpx.Timeout(300, connect=10), transport=self._transport)
+        return httpx.AsyncClient(timeout=httpx.Timeout(300, connect=10), transport=self._transport, follow_redirects=False, trust_env=False)
 
     def _payload(self, system: str, prompt: str, stream: bool, json_mode: bool) -> dict:
         p = {
@@ -39,10 +44,8 @@ class OllamaProvider(LLMProvider):
                 r = await c.post(f"{self.base}/api/chat", json=self._payload(system, prompt, False, json_mode))
                 r.raise_for_status()
                 return r.json().get("message", {}).get("content", "")
-        except httpx.HTTPStatusError as e:
-            raise LLMError(f"Ollama returned HTTP {e.response.status_code}.") from None
-        except (httpx.HTTPError, ValueError):
-            raise LLMError("Could not reach Ollama. Is it running and is the URL correct?") from None
+        except (httpx.HTTPError, ValueError, KeyError, AttributeError, OSError):
+            raise LLMError(GENERIC_ERROR) from None
 
     async def stream(self, system: str, prompt: str) -> AsyncIterator[str]:
         try:
@@ -60,7 +63,5 @@ class OllamaProvider(LLMProvider):
                             yield chunk
                         if data.get("done"):
                             break
-        except httpx.HTTPStatusError as e:
-            raise LLMError(f"Ollama returned HTTP {e.response.status_code}.") from None
-        except (httpx.HTTPError, ValueError):
-            raise LLMError("Could not reach Ollama. Is it running and is the URL correct?") from None
+        except (httpx.HTTPError, ValueError, KeyError, AttributeError, OSError):
+            raise LLMError(GENERIC_ERROR) from None
