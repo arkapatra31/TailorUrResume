@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TailorUrResume</title>
+    <meta name="description" content="Tailor your resume, CV and cover letter to any job with an LLM, without fabricating anything. Bring your own Anthropic key or run Ollama locally. Stateless and private." />
+    <meta name="theme-color" content="#020617" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="TailorUrResume: tailor every resume, fabricate nothing" />
+    <meta property="og:description" content="Open-source, bring-your-own-key resume tailor with a truthfulness guard. No database, no disk writes." />
+    <meta property="og:url" content="https://arkapatra31.github.io/TailorUrResume/" />
+    <meta property="og:image" content="https://arkapatra31.github.io/TailorUrResume/og.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <script>
+      // Follow the OS theme before first paint. Nothing is persisted, in keeping with the app.
+      if (matchMedia("(prefers-color-scheme: light)").matches) document.documentElement.dataset.theme = "light";
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <noscript>
+      <p style="padding:24px;font-family:system-ui">TailorUrResume tailors your resume to a job without fabricating anything.
+        See <a href="https://github.com/arkapatra31/TailorUrResume">the GitHub repository</a>.</p>
+    </noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

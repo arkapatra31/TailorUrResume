@@ -7,6 +7,7 @@ check that flags any claim not traceable to your profile. Export to PDF or DOCX.
 - **Backend:** FastAPI (Python 3.11+), no database, no disk writes, no server-side sessions or caches.
 - **Frontend:** Vite, React, TypeScript, Tailwind, Radix primitives, Framer Motion, Zustand (no persistence).
 - **Providers:** Anthropic (your API key) or a local Ollama model.
+- **Website:** https://arkapatra31.github.io/TailorUrResume/ (source in [`web/`](web/README.md), deployed by GitHub Actions).
 
 ## Architecture
 
