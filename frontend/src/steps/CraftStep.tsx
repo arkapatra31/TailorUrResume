@@ -58,9 +58,13 @@ export function CraftStep() {
     setBusy(key);
     try {
       const out = await api.regenerateBullet({ profile, jd, bullet: item.bullets[b], context: `${g.doc.sections[s].title}: ${item.heading} ${item.subheading}` });
-      const d = structuredClone(g.doc);
+      // Read the CURRENT doc after the await: the user may have edited while the request was in flight.
+      const cur = useStore.getState().jobs.find((j) => j.id === job.id)?.docs[activeKind];
+      if (!cur) return;
+      const d = structuredClone(cur.doc);
+      if (d.sections[s]?.items[i]?.bullets[b] === undefined) return;
       d.sections[s].items[i].bullets[b] = out.bullet;
-      setDoc(job.id, activeKind, { ...g, doc: d });
+      setDoc(job.id, activeKind, { ...cur, doc: d });
       recheck(d);
       toast.success("Bullet rewritten", { description: out.unsupported.length ? `Check: ${out.unsupported.join(", ")} is not in your profile.` : "Verified against your profile." });
     } catch (e) { toast.error((e as Error).message); }

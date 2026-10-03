@@ -11,7 +11,7 @@ function llmHeaders(): Record<string, string> {
   const s = useStore.getState();
   const h: Record<string, string> = { "X-LLM-Provider": s.provider, "X-LLM-Model": s.model };
   if (s.provider === "anthropic") h["X-LLM-Key"] = s.apiKey;
-  else h["X-LLM-Base-Url"] = s.baseUrl;
+  else if (s.baseUrl.trim()) h["X-LLM-Base-Url"] = s.baseUrl.trim();
   return h;
 }
 

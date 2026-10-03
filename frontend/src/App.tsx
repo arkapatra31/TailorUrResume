@@ -19,7 +19,7 @@ import { ProfileStep } from "@/steps/ProfileStep";
 import { useActiveJob, useStore } from "@/store";
 
 export default function App() {
-  const { step, theme, provider, apiKey, baseUrl, profile, jobs, dirty, setPalette } = useStore();
+  const { step, theme, provider, apiKey, model, profile, jobs, dirty, setPalette } = useStore();
   const job = useActiveJob();
 
   useEffect(() => { document.documentElement.dataset.theme = theme; }, [theme]);
@@ -33,7 +33,7 @@ export default function App() {
     return () => window.removeEventListener("beforeunload", h);
   }, []);
 
-  const keyOk = provider === "ollama" ? !!baseUrl : !!apiKey;
+  const keyOk = provider === "ollama" ? !!model : !!apiKey;
   const canGo = useCallback((i: number) => {
     if (i === 0) return true;
     if (!keyOk) return false;

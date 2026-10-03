@@ -15,7 +15,7 @@ export function KeyStep() {
   const { provider, apiKey, model, baseUrl, connected, setSettings, setStep } = useStore();
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
-  const ready = provider === "ollama" ? !!baseUrl && !!model : !!apiKey;
+  const ready = provider === "ollama" ? !!model : !!apiKey;
 
   const test = async () => {
     setBusy(true);
@@ -64,7 +64,8 @@ export function KeyStep() {
           ) : (
             <div>
               <Label htmlFor="url">Ollama URL</Label>
-              <Input id="url" value={baseUrl} onChange={(e) => setSettings({ baseUrl: e.target.value, connected: false })} placeholder="http://localhost:11434" />
+              <Input id="url" value={baseUrl} onChange={(e) => setSettings({ baseUrl: e.target.value, connected: false })} placeholder="Leave empty to use the server default (OLLAMA_URL)" />
+              <p className="mt-1.5 text-xs text-muted-foreground">Only hosts allowed by the server (ALLOWED_OLLAMA_HOSTS) are accepted, e.g. http://localhost:11434.</p>
             </div>
           )}
           <div>

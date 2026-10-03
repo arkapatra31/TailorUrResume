@@ -1,5 +1,5 @@
 import { LayoutGroup, motion, useReducedMotion } from "framer-motion";
-import { ArrowLeft, ArrowRight, CheckCircle2, Gauge, Lightbulb, Loader2, RefreshCw, XCircle } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2, Gauge, Lightbulb, Loader2, RefreshCw, XCircle } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Confetti } from "@/components/Confetti";
@@ -25,22 +25,26 @@ export function MatchStep() {
   const { profile, jobs, activeJobId, setActiveJob, updateJob, setStep, addJob } = useStore();
   const [loading, setLoading] = useState(false);
   const [sorted, setSorted] = useState(false);
+  const [error, setError] = useState("");
   const reduce = useReducedMotion();
   const ran = useRef<string | null>(null);
 
   const run = useCallback(async () => {
     if (!job?.jd || !profile) return;
-    setLoading(true); setSorted(false);
+    setLoading(true); setSorted(false); setError("");
     try {
       const m = await api.match(profile, job.jd);
       updateJob(job.id, { match: m });
-    } catch (e) { toast.error((e as Error).message); }
-    finally { setLoading(false); }
+    } catch (e) {
+      const msg = (e as Error).message;
+      setError(msg); toast.error(msg);
+      ran.current = null; // allow a retry / re-entry to run again
+    } finally { setLoading(false); }
   }, [job?.id, job?.jd, profile, updateJob]);
 
   useEffect(() => {
-    if (job && !job.match && ran.current !== job.id) { ran.current = job.id; run(); }
-  }, [job, run]);
+    if (job && !job.match && !error && ran.current !== job.id) { ran.current = job.id; run(); }
+  }, [job, run, error]);
 
   const m = job?.match;
   useEffect(() => {
@@ -57,7 +61,13 @@ export function MatchStep() {
       <Confetti fire={!!m && m.score >= 85} />
       <StepHeader id="match" icon={Gauge} title="How well do you fit?" subtitle={`${job.jd?.title ?? "Role"}${job.jd?.company ? ` at ${job.jd.company}` : ""}: keyword coverage plus semantic fit.`} />
 
-      {loading || !m ? (
+      {error && !loading && !m ? (
+        <Card role="alert" className="flex min-h-[280px] flex-col items-center justify-center gap-4 text-center">
+          <AlertTriangle className="size-10 text-danger" />
+          <div><p className="font-semibold">We could not compare your profile with this job.</p><p className="mt-1 text-sm text-muted-foreground">{error}</p></div>
+          <Button onClick={() => { ran.current = job?.id ?? null; run(); }}><RefreshCw />Retry</Button>
+        </Card>
+      ) : loading || !m ? (
         <Card className="flex min-h-[280px] flex-col items-center justify-center gap-3" aria-busy="true">
           <Loader2 className="size-10 animate-spin text-accent" /><p className="text-muted-foreground">Comparing your profile with the job…</p>
         </Card>

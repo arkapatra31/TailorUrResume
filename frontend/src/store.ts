@@ -59,7 +59,7 @@ export const useStore = create<State>((set, get) => ({
   provider: "anthropic",
   apiKey: "",
   model: "claude-sonnet-5-5",
-  baseUrl: "http://localhost:11434",
+  baseUrl: "", // empty = use the server's OLLAMA_URL
   connected: false,
   step: 0,
   profile: null,
