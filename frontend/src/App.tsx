@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, LayoutGroup, motion } from "framer-motion";
 import { Command as CmdIcon, Download, Save, Sparkles, Upload } from "lucide-react";
 import { useCallback, useEffect } from "react";
 import { Toaster } from "sonner";
@@ -84,7 +84,8 @@ export default function App() {
       <main id="main" className="mx-auto max-w-6xl px-4 pb-24 pt-8 sm:px-6">
         <AnimatePresence mode="wait">
           <motion.div key={step} initial={{ opacity: 0, x: 40, filter: "blur(6px)" }} animate={{ opacity: 1, x: 0, filter: "blur(0px)" }} exit={{ opacity: 0, x: -40, filter: "blur(6px)" }} transition={{ duration: 0.28 }}>
-            <Current />
+            {/* Own LayoutGroup per step: shared layoutIds must not cross the exiting/entering boundary. */}
+            <LayoutGroup id={`step-${step}`}><Current /></LayoutGroup>
           </motion.div>
         </AnimatePresence>
       </main>

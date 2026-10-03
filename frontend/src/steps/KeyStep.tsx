@@ -1,3 +1,4 @@
+import * as RadioGroup from "@radix-ui/react-radio-group";
 import { motion } from "framer-motion";
 import { ArrowRight, CheckCircle2, Eye, EyeOff, KeyRound, Loader2, ShieldCheck, Zap } from "lucide-react";
 import { useState } from "react";
@@ -36,15 +37,19 @@ export function KeyStep() {
       <StepHeader id="key" icon={KeyRound} title="Bring your own brain" subtitle="Connect your own model. Your key lives only in this tab's memory and is sent per request, never stored." />
       <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
         <Card className="space-y-5">
-          <div role="radiogroup" aria-label="Provider" className="glass grid grid-cols-2 gap-1 rounded-xl p-1">
+          {/* Radix RadioGroup gives roving focus + arrow-key navigation. The pill slides via x, not a shared layoutId,
+              so it can never get stuck inside an exiting AnimatePresence subtree. */}
+          <RadioGroup.Root aria-label="Provider" value={provider} onValueChange={(v) => pick(v as "anthropic" | "ollama")}
+            className="glass relative grid grid-cols-2 gap-1 rounded-xl p-1">
+            <motion.span aria-hidden className="absolute inset-y-1 left-1 w-[calc(50%-4px)] rounded-lg bg-primary"
+              animate={{ x: provider === "anthropic" ? 0 : "100%" }} transition={{ type: "spring", stiffness: 380, damping: 32 }} />
             {(["anthropic", "ollama"] as const).map((p) => (
-              <button key={p} role="radio" aria-checked={provider === p} onClick={() => pick(p)}
-                className={cn("relative rounded-lg py-2 text-sm font-medium transition-colors", provider === p ? "text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>
-                {provider === p && <motion.span layoutId="prov" className="absolute inset-0 rounded-lg bg-primary" />}
-                <span className="relative">{p === "anthropic" ? "Anthropic" : "Ollama (local)"}</span>
-              </button>
+              <RadioGroup.Item key={p} value={p}
+                className={cn("relative rounded-lg py-2 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring", provider === p ? "text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>
+                {p === "anthropic" ? "Anthropic" : "Ollama (local)"}
+              </RadioGroup.Item>
             ))}
-          </div>
+          </RadioGroup.Root>
           {provider === "anthropic" ? (
             <div>
               <Label htmlFor="key">API key</Label>

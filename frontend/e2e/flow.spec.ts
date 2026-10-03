@@ -1,6 +1,12 @@
 import { expect, test, type Page } from "@playwright/test";
 import { dumpStorage, mockApi } from "./mocks";
 
+/** Click a footer button once the previous step has finished its exit animation (only one match left). */
+async function press(page: Page, name: RegExp) {
+  const b = page.getByRole("button", { name });
+  await expect(b).toHaveCount(1);
+  await b.click();
+}
 const heading = (page: Page, name: RegExp | string) => page.getByRole("heading", { level: 1, name });
 
 test("Key -> Profile -> Job -> Match -> Craft -> Export", async ({ page }) => {
@@ -15,33 +21,33 @@ test("Key -> Profile -> Job -> Match -> Craft -> Export", async ({ page }) => {
   await expect(page.getByLabel("Ollama URL")).toBeVisible();
   await page.getByRole("radio", { name: /Anthropic/ }).click();
   await page.getByLabel("API key").fill("sk-ant-test-key");
-  await page.getByRole("button", { name: /Continue/ }).click();
+  await press(page, /Continue/);
 
   // Step 2: Profile
   await expect(heading(page, /Your story, structured/)).toBeVisible();
   await page.locator('input[type="file"]').setInputFiles({ name: "cv.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4 fake") });
   await expect(page.getByText("Parsed from")).toBeVisible();
-  await page.getByRole("button", { name: /Continue/ }).click();
+  await press(page, /Continue/);
 
   // Step 3: Job
   await expect(heading(page, /Pick your target/)).toBeVisible();
-  await page.getByRole("button", { name: /Add a job/ }).click();
+  await press(page, /Add a job/);
   await page.getByLabel("Job description").fill("We need a Backend Engineer with Python and PostgreSQL experience. Docker is a plus.");
-  await page.getByRole("button", { name: /Extract details/ }).click();
+  await press(page, /Extract details/);
   await expect(page.getByRole("button", { name: /Re-extract details/ })).toBeVisible();
-  await page.getByRole("button", { name: /Analyze match/ }).click();
+  await press(page, /Analyze match/);
 
   // Step 4: Match (must not hang on a blank <main>)
   await expect(heading(page, /How well do you fit/)).toBeVisible();
   await expect(page.getByText("Keywords", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: /Craft documents/ }).click();
+  await press(page, /Craft documents/);
 
   // Step 5: Craft
   await expect(heading(page, /Craft your documents/)).toBeVisible();
   await page.getByRole("button", { name: /Generate Resume/ }).click();
   await expect(page.getByText("Analytical Engines Ltd").first()).toBeVisible();
-  await expect(page.getByText("Every claim traces back to your profile.")).toBeVisible();
-  await page.getByRole("button", { name: /^Export/ }).click();
+  await expect(page.locator("#main").getByText("Every claim traces back to your profile.")).toBeVisible();
+  await press(page, /^Export/);
 
   // Step 6: Export
   await expect(heading(page, /Ship it/)).toBeVisible();
@@ -55,13 +61,13 @@ test("a failed match shows an error with Retry", async ({ page }) => {
   await mockApi(page, { matchFails: 1 });
   await page.goto("/");
   await page.getByLabel("API key").fill("sk-ant-test-key");
-  await page.getByRole("button", { name: /Continue/ }).click();
-  await page.getByRole("button", { name: /Start from a blank profile/ }).click();
-  await page.getByRole("button", { name: /Continue/ }).click();
-  await page.getByRole("button", { name: /Add a job/ }).click();
+  await press(page, /Continue/);
+  await press(page, /Start from a blank profile/);
+  await press(page, /Continue/);
+  await press(page, /Add a job/);
   await page.getByLabel("Job description").fill("We need a Backend Engineer with Python and PostgreSQL experience.");
-  await page.getByRole("button", { name: /Extract details/ }).click();
-  await page.getByRole("button", { name: /Analyze match/ }).click();
+  await press(page, /Extract details/);
+  await press(page, /Analyze match/);
   await expect(page.getByRole("alert").filter({ hasText: "Model overloaded." })).toBeVisible();
   await page.getByRole("button", { name: /Retry/ }).click();
   await expect(page.getByText("Semantic fit")).toBeVisible();
