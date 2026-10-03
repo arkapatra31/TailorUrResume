@@ -1,7 +1,7 @@
 import { motion, useReducedMotion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 
-const COLORS = ["#a78bfa", "#22d3ee", "#f472b6", "#34d399", "#fbbf24", "#60a5fa"];
+const COLORS = ["#34d399", "#2dd4bf", "#22d3ee", "#6ee7b7", "#fbbf24", "#5eead4"];
 
 export function Confetti({ fire }: { fire: boolean }) {
   const reduce = useReducedMotion();

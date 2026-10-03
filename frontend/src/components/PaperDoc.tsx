@@ -53,7 +53,7 @@ export function PaperDoc({ doc, template = "classic", flags = [], editable, stre
   const FlagMark = ({ f }: { f?: TruthFlag }) =>
     f ? (
       <Tip label={<span>Not found in your profile: <b>{f.unsupported.join(", ")}</b>. Edit or remove before sending.</span>}>
-        <span className="mr-1 inline-flex align-middle text-amber-600" role="img" aria-label="Unverified claim"><AlertTriangle className="size-[1.1em]" /></span>
+        <span className="mr-1 inline-flex align-middle text-amber-700" role="img" aria-label="Unverified claim"><AlertTriangle className="size-[1.1em]" /></span>
       </Tip>
     ) : null;
 
@@ -106,7 +106,7 @@ export function PaperDoc({ doc, template = "classic", flags = [], editable, stre
                             aria-label="Regenerate this bullet"
                             onClick={() => onRegen(si, ii, bi)}
                             disabled={busyKey === key}
-                            className="p-act ml-1.5 inline-flex align-middle text-violet-600 hover:text-violet-800"
+                            className="p-act ml-1.5 inline-flex align-middle text-emerald-700 hover:text-emerald-900"
                           >
                             {busyKey === key ? <Loader2 className="size-[1.1em] animate-spin" /> : <RefreshCw className="size-[1.1em]" />}
                           </button>

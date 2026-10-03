@@ -81,3 +81,26 @@ export async function dumpStorage(page: Page) {
     };
   });
 }
+
+/** Drive the UI through Key -> Profile -> Job -> Match -> Craft and generate a resume. */
+export async function reachCraft(page: Page) {
+  const press = async (name: RegExp) => {
+    const b = page.getByRole("button", { name });
+    await b.first().waitFor();
+    await page.waitForFunction((n) => document.querySelectorAll("main button").length > 0 && [...document.querySelectorAll("main button")].filter((x) => new RegExp(n).test(x.textContent ?? "")).length === 1, name.source);
+    await b.click();
+  };
+  await page.goto("/");
+  await page.getByLabel("API key").fill("sk-ant-test-key");
+  await press(/Continue/);
+  await page.locator('input[type="file"]').setInputFiles({ name: "cv.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4 fake") });
+  await page.getByText("Parsed from").waitFor();
+  await press(/Continue/);
+  await press(/Add a job/);
+  await page.getByLabel("Job description").fill("We need a Backend Engineer with Python and PostgreSQL experience. Docker is a plus.");
+  await press(/Extract details/);
+  await press(/Analyze match/);
+  await press(/Craft documents/);
+  await press(/Generate Resume/);
+  await page.locator("#main").getByText("Analytical Engines Ltd").first().waitFor();
+}

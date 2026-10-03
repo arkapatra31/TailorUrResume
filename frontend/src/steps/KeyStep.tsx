@@ -30,7 +30,7 @@ export function KeyStep() {
   };
 
   const pick = (p: "anthropic" | "ollama") =>
-    setSettings({ provider: p, connected: false, model: p === "anthropic" ? "claude-sonnet-5-5" : "llama3.1" });
+    p !== provider && setSettings({ provider: p, connected: false, model: p === "anthropic" ? "claude-sonnet-5-5" : "llama3.1" });
 
   return (
     <div>
@@ -40,11 +40,16 @@ export function KeyStep() {
           {/* Radix RadioGroup gives roving focus + arrow-key navigation. The pill slides via x, not a shared layoutId,
               so it can never get stuck inside an exiting AnimatePresence subtree. */}
           <RadioGroup.Root aria-label="Provider" value={provider} onValueChange={(v) => pick(v as "anthropic" | "ollama")}
+            onKeyDown={(e) => {
+              // Radix moves focus on arrow keys; select the focused option too (radio-group semantics).
+              const next = ({ ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 } as Record<string, number>)[e.key];
+              if (next) { e.preventDefault(); const order = ["anthropic", "ollama"] as const; const to = order[(order.indexOf(provider) + next + 2) % 2]; pick(to); document.getElementById(`prov-${to}`)?.focus(); }
+            }}
             className="glass relative grid grid-cols-2 gap-1 rounded-xl p-1">
             <motion.span aria-hidden className="absolute inset-y-1 left-1 w-[calc(50%-4px)] rounded-lg bg-primary"
               animate={{ x: provider === "anthropic" ? 0 : "100%" }} transition={{ type: "spring", stiffness: 380, damping: 32 }} />
             {(["anthropic", "ollama"] as const).map((p) => (
-              <RadioGroup.Item key={p} value={p}
+              <RadioGroup.Item key={p} value={p} id={`prov-${p}`}
                 className={cn("relative rounded-lg py-2 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring", provider === p ? "text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>
                 {p === "anthropic" ? "Anthropic" : "Ollama (local)"}
               </RadioGroup.Item>

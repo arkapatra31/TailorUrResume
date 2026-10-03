@@ -11,24 +11,27 @@ import { Input, Label, Textarea } from "@/components/ui/field";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import type { FetchedJob, JobDescription } from "@/lib/types";
-import { cn, hostOf } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { useActiveJob, useStore } from "@/store";
 
-function Favicon({ url, name }: { url: string; name: string }) {
-  const [bad, setBad] = useState(false);
-  const host = hostOf(url);
-  return host && !bad ? (
-    <img src={`https://www.google.com/s2/favicons?domain=${host}&sz=64`} alt="" width={40} height={40} onError={() => setBad(true)} className="size-10 rounded-lg bg-white p-1" />
-  ) : (
-    <span className="flex size-10 items-center justify-center rounded-lg bg-primary text-lg font-bold text-primary-foreground">{(name || "?")[0]?.toUpperCase()}</span>
+/** Local monogram avatar: no third-party favicon request, so a posting URL never leaks to anyone. */
+const AVATAR_HUES = [152, 168, 184, 198, 38, 12];
+function Monogram({ name }: { name: string }) {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  const initials = ((words[0]?.[0] ?? "?") + (words.length > 1 ? words[words.length - 1][0] : "")).toUpperCase();
+  const hue = AVATAR_HUES[[...name].reduce((h, c) => h + c.charCodeAt(0), 0) % AVATAR_HUES.length];
+  return (
+    <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-lg text-sm font-bold tracking-tight text-white shadow-inner"
+      style={{ background: `linear-gradient(135deg, hsl(${hue} 70% 26%), hsl(${(hue + 24) % 360} 75% 34%))` }}>{initials}</span>
   );
 }
 
-function JobCard({ f, url }: { f: FetchedJob; url: string }) {
+function JobCard({ f }: { f: FetchedJob }) {
   return (
     <motion.div initial={{ opacity: 0, y: 24, scale: 0.9, filter: "blur(12px)" }} animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
-      transition={{ type: "spring", stiffness: 140, damping: 16 }} className="glass flex items-center gap-4 rounded-2xl p-4">
-      <Favicon url={url} name={f.company || f.title} />
+      // Springs overshoot; a negative blur radius is invalid CSS and breaks the filter. Tween the filter, spring the rest.
+      transition={{ type: "spring", stiffness: 140, damping: 16, filter: { type: "tween", duration: 0.45, ease: "easeOut" } }} className="glass flex items-center gap-4 rounded-2xl p-4">
+      <Monogram name={f.company || f.title} />
       <div className="min-w-0 flex-1">
         <div className="truncate font-semibold">{f.title || "Job posting"}</div>
         <div className="mt-0.5 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
@@ -132,7 +135,7 @@ export function JobStep() {
             </div>
             <p className="text-xs text-muted-foreground">Fetched once, only when you click. LinkedIn access is unofficial and may be blocked; see the README for the terms-of-service note.</p>
             {fetching && <SkeletonCard />}
-            {!fetching && job.fetched && <JobCard f={job.fetched} url={job.url} />}
+            {!fetching && job.fetched && <JobCard f={job.fetched} />}
             {!fetching && job.fetched && (
               <div><Label htmlFor="ft">Fetched text (edit freely)</Label>
                 <Textarea id="ft" rows={10} value={job.rawText} onChange={(e) => updateJob(job.id, { rawText: e.target.value })} /></div>

@@ -60,20 +60,22 @@ export default function App() {
     <TooltipProvider>
       <Aurora />
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground">Skip to content</a>
-      <header className="sticky top-0 z-30 px-4 pt-4 sm:px-6">
+      <header className="sticky top-0 z-30 border-b bg-background/85 px-3 py-2 backdrop-blur-xl backdrop-saturate-150 supports-[not(backdrop-filter)]:bg-background sm:px-6 sm:pb-3 sm:pt-4">
         <div className="mx-auto flex max-w-6xl flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <span className="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent shadow-lg"><Sparkles className="size-5 text-white" /></span>
-              <span className="text-lg font-bold tracking-tight">Tailor<span className="text-gradient">Ur</span>Resume</span>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex shrink-0 items-center gap-2.5">
+              <span className="flex size-8 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent shadow-lg sm:size-9"><Sparkles className="size-4 text-primary-foreground sm:size-5" /></span>
+              <span className="hidden text-lg font-bold tracking-tight sm:inline">Tailor<span className="text-gradient">Ur</span>Resume</span>
             </div>
-            <div className="flex items-center gap-2">
+            {/* Phones: one compact row (logo, step icons, palette, theme) so the sticky bar stays under ~72px. */}
+            <Stepper canGo={canGo} compact />
+            <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
               <Button variant="glass" size="sm" className="hidden sm:inline-flex" onClick={() => setPalette(true)} aria-label="Open command palette">
                 <CmdIcon />Commands <kbd className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">⌘K</kbd>
               </Button>
-              <Button variant="glass" size="icon" className="sm:hidden" onClick={() => setPalette(true)} aria-label="Open command palette"><CmdIcon /></Button>
-              <Button variant="glass" size="icon" onClick={exportSession} aria-label="Save session"><Save /></Button>
-              <Button variant="glass" size="icon" onClick={pickSessionFile} aria-label="Load session"><Upload /></Button>
+              <Button variant="glass" size="icon" className="size-9 sm:hidden" onClick={() => setPalette(true)} aria-label="Open command palette"><CmdIcon /></Button>
+              <Button variant="glass" size="icon" className="hidden sm:inline-flex" onClick={exportSession} aria-label="Save session"><Save /></Button>
+              <Button variant="glass" size="icon" className="hidden sm:inline-flex" onClick={pickSessionFile} aria-label="Load session"><Upload /></Button>
               <ThemeToggle />
             </div>
           </div>
@@ -81,7 +83,7 @@ export default function App() {
         </div>
       </header>
 
-      <main id="main" className="mx-auto max-w-6xl px-4 pb-24 pt-8 sm:px-6">
+      <main id="main" className="mx-auto overflow-x-clip max-w-6xl px-4 pb-24 pt-8 sm:px-6">
         <AnimatePresence mode="wait">
           <motion.div key={step} initial={{ opacity: 0, x: 40, filter: "blur(6px)" }} animate={{ opacity: 1, x: 0, filter: "blur(0px)" }} exit={{ opacity: 0, x: -40, filter: "blur(6px)" }} transition={{ duration: 0.28 }}>
             {/* Own LayoutGroup per step: shared layoutIds must not cross the exiting/entering boundary. */}
