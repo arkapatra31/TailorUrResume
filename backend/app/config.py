@@ -21,6 +21,7 @@ CORS_ORIGINS = [
     if o.strip()
 ]
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(5 * 1024 * 1024)))
+MAX_REQUEST_BYTES = int(os.getenv("MAX_REQUEST_BYTES", str(10 * 1024 * 1024)))  # whole upload request incl. multipart framing
 MAX_TEXT_CHARS = int(os.getenv("MAX_TEXT_CHARS", "40000"))
 FETCH_TIMEOUT = float(os.getenv("FETCH_TIMEOUT", "12"))
 FETCH_MAX_BYTES = int(os.getenv("FETCH_MAX_BYTES", str(2 * 1024 * 1024)))

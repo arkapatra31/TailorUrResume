@@ -6,7 +6,7 @@ import logging
 import re
 from typing import AsyncIterator
 
-from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
@@ -26,11 +26,13 @@ from .schemas import (
 from .tailor.generate import generate_events, regenerate_bullet
 from .tailor.match import analyze_match
 from .tailor.truth import check_document
+from .uploads import UploadError, UploadLimitMiddleware, parse_multipart_file
 
 install_redaction()
 log = logging.getLogger("tailorurresume")
 
 app = FastAPI(title="TailorUrResume", version="1.0.0")
+app.add_middleware(UploadLimitMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=config.CORS_ORIGINS,
@@ -80,11 +82,14 @@ async def test_connection(provider: LLMProvider = Depends(get_provider)):
 
 
 @app.post("/api/profile/parse", response_model=Profile)
-async def profile_parse(file: UploadFile = File(...), provider: LLMProvider = Depends(get_provider)):
-    data = await file.read(config.MAX_UPLOAD_BYTES + 1)
+async def profile_parse(request: Request, provider: LLMProvider = Depends(get_provider)):
+    # Parsed in memory (see uploads.py): Starlette's form parser would spool big files to disk.
     try:
-        text = extract_text(file.filename or "", data)
-    except ParseError as e:
+        filename, data = parse_multipart_file(request.headers.get("content-type", ""), await request.body())
+        if len(data) > config.MAX_UPLOAD_BYTES:
+            raise HTTPException(413, f"File too large (limit {config.MAX_UPLOAD_BYTES // (1024 * 1024)} MB).")
+        text = extract_text(filename, data)
+    except (UploadError, ParseError) as e:
         raise HTTPException(422, str(e)) from None
     return await parse_profile(provider, text)
 
