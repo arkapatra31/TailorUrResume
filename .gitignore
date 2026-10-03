@@ -8,3 +8,6 @@ __pycache__/
 .env
 *.log
 .DS_Store
+*.tsbuildinfo
+test-results/
+playwright-report/
