@@ -11,10 +11,12 @@ import ipaddress
 import json
 import re
 import socket
+import ssl
 from dataclasses import dataclass, asdict
 from typing import Awaitable, Callable, Optional
 from urllib.parse import parse_qs, urlparse
 
+import httpcore
 import httpx
 from bs4 import BeautifulSoup
 
@@ -99,44 +101,169 @@ def clean_text(text: str) -> str:
     return text.strip()
 
 
+# ---------- SSRF guard ----------
+_V4 = ipaddress.IPv4Address
+_NAT64 = ipaddress.ip_network("64:ff9b::/96")
+_NAT64_LOCAL = ipaddress.ip_network("64:ff9b:1::/48")
+_SIX_TO_FOUR = ipaddress.ip_network("2002::/16")
+_V4_COMPAT = ipaddress.ip_network("::/96")
+_TEREDO = ipaddress.ip_network("2001::/32")
+_CGNAT = ipaddress.ip_network("100.64.0.0/10")
+ALLOWED_PORTS = {80, 443}
+
+
+def unwrap_ip(ip):
+    """Return the IPv4 address embedded in IPv4-mapped, NAT64, 6to4 and IPv4-compatible IPv6 forms."""
+    if ip.version == 6:
+        if ip.ipv4_mapped:
+            return ip.ipv4_mapped
+        if ip in _NAT64 or ip in _V4_COMPAT:
+            return _V4(int(ip) & 0xFFFFFFFF)
+        if ip in _SIX_TO_FOUR:
+            return _V4((int(ip) >> 80) & 0xFFFFFFFF)
+    return ip
+
+
+def is_public_ip(ip) -> bool:
+    """True only for globally routable unicast addresses (after unwrapping embedded IPv4)."""
+    if ip.version == 6 and (ip in _NAT64_LOCAL or ip in _TEREDO):
+        return False
+    ip = unwrap_ip(ip)
+    if ip.version == 4 and ip in _CGNAT:
+        return False
+    return ip.is_global and not ip.is_multicast and not ip.is_unspecified
+
+
+async def resolve_public(host: str, port: int = 443) -> list[str]:
+    """Resolve host and return its addresses, raising FetchError unless EVERY address is public."""
+    try:
+        literal = ipaddress.ip_address(host.strip("[]"))
+        infos = [(None, None, None, None, (str(literal), port))]
+    except ValueError:
+        try:
+            infos = await asyncio.get_running_loop().getaddrinfo(host, port, type=socket.SOCK_STREAM)
+        except (socket.gaierror, UnicodeError):
+            raise FetchError("Could not resolve that host.") from None
+    ips: list[str] = []
+    for info in infos:
+        addr = info[4][0].split("%")[0]
+        if not is_public_ip(ipaddress.ip_address(addr)):
+            raise FetchError("Refusing to fetch private or local addresses.")
+        ips.append(addr)
+    if not ips:
+        raise FetchError("Could not resolve that host.")
+    return ips
+
+
 async def _default_public_check(url: str) -> None:
-    host = urlparse(url).hostname
-    if not host:
+    u = urlparse(url)
+    if not u.hostname or u.username or u.password:
         raise FetchError("Invalid URL.")
     try:
-        infos = await asyncio.get_running_loop().getaddrinfo(host, None, type=socket.SOCK_STREAM)
-    except socket.gaierror:
-        raise FetchError("Could not resolve that host.") from None
-    for info in infos:
-        ip = ipaddress.ip_address(info[4][0])
-        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
-            raise FetchError("Refusing to fetch private or local addresses.")
+        port = u.port or (443 if u.scheme == "https" else 80)
+    except ValueError:
+        raise FetchError("Invalid URL.") from None
+    await resolve_public(u.hostname, port)
+    if port not in ALLOWED_PORTS:
+        raise FetchError("Only standard web ports (80/443) can be fetched.")
+
+
+class PinnedBackend(httpcore.AsyncNetworkBackend):
+    """Network backend that resolves, validates and connects in ONE step.
+
+    httpcore calls connect_tcp(host, port) with the URL's host; we resolve that host ourselves,
+    reject non-public addresses and dial the validated IP literal. TLS SNI and certificate checks
+    still use the original hostname, and a second DNS lookup (DNS rebinding) can never happen.
+    """
+
+    def __init__(self, inner: Optional[httpcore.AsyncNetworkBackend] = None, resolver=resolve_public):
+        self._inner = inner or httpcore.AnyIOBackend()
+        self._resolve = resolver
+
+    async def connect_tcp(self, host, port, timeout=None, local_address=None, socket_options=None):
+        ips = await self._resolve(host, port)
+        last: Optional[Exception] = None
+        for ip in ips:
+            try:
+                return await self._inner.connect_tcp(ip, port, timeout=timeout, local_address=local_address,
+                                                     socket_options=socket_options)
+            except Exception as e:  # noqa: BLE001 - try the next validated address
+                last = e
+        raise last or httpcore.ConnectError("no address")
+
+    async def connect_unix_socket(self, path, timeout=None, socket_options=None):
+        raise httpcore.ConnectError("unix sockets are not allowed")
+
+    async def sleep(self, seconds):
+        await self._inner.sleep(seconds)
+
+
+def make_pinned_transport(backend: Optional[httpcore.AsyncNetworkBackend] = None) -> httpx.AsyncHTTPTransport:
+    t = httpx.AsyncHTTPTransport(retries=0)
+    t._pool = httpcore.AsyncConnectionPool(
+        ssl_context=ssl.create_default_context(), max_connections=10, network_backend=backend or PinnedBackend(),
+    )
+    return t
+
+
+def make_client() -> httpx.AsyncClient:
+    """Production client: pinned connections, no env proxies (a proxy would resolve the name itself).
+
+    Set FETCH_USE_ENV_PROXY=1 only where egress REQUIRES an HTTP proxy. Every hop is then still
+    validated by the pre-flight check, but connections cannot be pinned to the validated IP.
+    """
+    timeout = httpx.Timeout(config.FETCH_TIMEOUT)
+    if config.FETCH_USE_ENV_PROXY:
+        return httpx.AsyncClient(timeout=timeout, trust_env=True)
+    return httpx.AsyncClient(timeout=timeout, trust_env=False, transport=make_pinned_transport())
 
 
 PublicCheck = Callable[[str], Awaitable[None]]
 
 
+async def _read_capped(r: httpx.Response, cap: int) -> bytes:
+    declared = r.headers.get("content-length", "")
+    if declared.isdigit() and int(declared) > cap:
+        raise FetchError("That page is too large to import.")
+    buf = bytearray()
+    async for chunk in r.aiter_bytes():
+        buf += chunk
+        if len(buf) > cap:
+            raise FetchError("That page is too large to import.")
+    return bytes(buf)
+
+
 async def _get(
     client: httpx.AsyncClient, url: str, check: PublicCheck, accept: str = "text/html,*/*"
 ) -> httpx.Response:
+    cap = config.FETCH_MAX_BYTES
     for _ in range(5):
         if not url.startswith(("http://", "https://")):
             raise FetchError("Only http(s) URLs are supported.")
-        await check(url)
+        await check(url)  # validate EVERY hop, including redirects
+        req = client.build_request("GET", url, headers={"User-Agent": UA, "Accept": accept})
         try:
-            r = await client.get(url, headers={"User-Agent": UA, "Accept": accept}, follow_redirects=False)
+            r = await client.send(req, stream=True, follow_redirects=False)
         except httpx.HTTPError:
             raise FetchError("Network error while fetching the page.") from None
-        if r.is_redirect and r.headers.get("location"):
-            url = str(httpx.URL(url).join(r.headers["location"]))
-            continue
-        if r.status_code in (403, 429, 999):
-            raise FetchError(f"The site refused the request (HTTP {r.status_code}); it may be blocking automated access.")
-        if r.status_code == 404:
-            raise FetchError("Posting not found (it may have been closed).")
-        if r.status_code >= 400:
-            raise FetchError(f"The site returned HTTP {r.status_code}.")
-        return r
+        try:
+            if r.is_redirect and r.headers.get("location"):
+                url = str(httpx.URL(url).join(r.headers["location"]))
+                continue
+            if r.status_code in (403, 429, 999):
+                raise FetchError(f"The site refused the request (HTTP {r.status_code}); it may be blocking automated access.")
+            if r.status_code == 404:
+                raise FetchError("Posting not found (it may have been closed).")
+            if r.status_code >= 400:
+                raise FetchError(f"The site returned HTTP {r.status_code}.")
+            try:
+                body = await _read_capped(r, cap)
+            except httpx.HTTPError:
+                raise FetchError("Network error while fetching the page.") from None
+            headers = [(k, v) for k, v in r.headers.multi_items() if k.lower() not in ("content-encoding", "content-length")]
+            return httpx.Response(r.status_code, headers=headers, content=body, request=req)
+        finally:
+            await r.aclose()
     raise FetchError("Too many redirects.")
 
 
@@ -244,7 +371,7 @@ async def fetch_job(
     if not re.match(r"^https?://", url, re.I):
         url = "https://" + url
     own = client is None
-    client = client or httpx.AsyncClient(timeout=config.FETCH_TIMEOUT)
+    client = client or make_client()
     try:
         if (jid := linkedin_job_id(url)):
             return await fetch_linkedin(jid, client, public_check)
